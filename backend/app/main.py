@@ -1,0 +1,105 @@
+import asyncio
+from urllib.parse import urlparse
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from app import config, db
+from app.routes import auth, chats, files, settings, preview, terminal, site, billing, google, admin, desktop, connections, schedules, keys, browser, studio, avatar, plugins, providers as provider_routes
+from app.agent import sandbox, runs
+
+
+async def purge_loop():
+    from app import security
+    while True:
+        try:
+            await security.purge_due()
+        except Exception as problem:
+            print("PURGE FAILED", problem, flush=True)
+        await asyncio.sleep(3600)
+
+
+async def on_start():
+    db.connect()
+    loop = asyncio.get_running_loop()
+    loop.create_task(sandbox.reaper())
+    loop.create_task(runs.cleaner())
+    loop.create_task(site.sampler())
+    loop.create_task(schedules.loop())
+    loop.create_task(purge_loop())
+    db.execute("UPDATE runs SET status = 'stopped' WHERE status = 'running'")
+
+
+async def life(application):
+    await on_start()
+    yield
+
+
+app = FastAPI(title="Forkwise API", docs_url=None, redoc_url=None, openapi_url=None, lifespan=asynccontextmanager(life))
+
+
+def served_preview(request):
+    if config.PREVIEW_HOST or not config.SECURE_COOKIES:
+        return False
+    if request.headers.get("sec-fetch-site") != "same-origin":
+        return False
+    site_host = urlparse(config.SITE_URL).netloc.lower()
+    return (request.headers.get("host") or "").lower() != site_host
+
+
+async def gatekeeper(request: Request, call_next):
+    found = preview.match_host(request.headers.get("host"))
+    if found:
+        path = request.url.path.lstrip("/")
+        return await preview.forward(request, found[0], found[1], path)
+    path = request.url.path
+    if path.startswith("/api/") and served_preview(request):
+        return JSONResponse({"detail": "Previews cannot use the Forkwise API."}, status_code=403)
+    if path.startswith("/api/") and keys.bearer(request):
+        if keys.blocked_path(path):
+            return JSONResponse({"detail": "API keys cannot do this. Sign in on the website."}, status_code=403)
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    if path.startswith("/api/") and path not in ("/api/billing/ipn", "/api/billing/card-webhook") and request.method not in ["GET", "HEAD", "OPTIONS"]:
+        if request.headers.get("x-forkwise") != "1":
+            return JSONResponse({"detail": "Missing request header."}, status_code=403)
+        origin = request.headers.get("origin")
+        if origin and origin.rstrip("/") not in config.FRONTEND_URLS:
+            return JSONResponse({"detail": "This site is not allowed to use the API."}, status_code=403)
+    response = await call_next(request)
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=gatekeeper)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.FRONTEND_URLS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["content-type", "x-forkwise"],
+    max_age=600,
+)
+
+auth.register_routes(app)
+keys.register_routes(app)
+chats.register_routes(app)
+files.register_routes(app)
+settings.register_routes(app)
+terminal.register_routes(app)
+desktop.register_routes(app)
+preview.register_routes(app)
+site.register_routes(app)
+billing.register_routes(app)
+google.register_routes(app)
+avatar.register_routes(app)
+admin.register_routes(app)
+connections.register_routes(app)
+schedules.register_routes(app)
+browser.register_routes(app)
+studio.register_routes(app)
+plugins.register_routes(app)
+provider_routes.register_routes(app)

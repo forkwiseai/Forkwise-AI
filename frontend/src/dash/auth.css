@@ -1,0 +1,121 @@
+/* Sign in, sign up, verification and onboarding. Built on the dashboard kit. */
+
+.fw.fw-auth { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--bg-1); overflow: hidden; }
+.fw.fw-auth.is-single { grid-template-columns: minmax(0, 1fr); }
+.fw .fw-auth-main { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.fw .fw-auth-top { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 28px; flex: none; }
+.fw .fw-auth-toplink { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tx-2); }
+.fw .fw-auth-toplink:hover { color: var(--tx); }
+.fw .fw-auth-body { flex: 1; display: grid; place-items: center; padding: 24px; }
+.fw .fw-auth-form { width: min(380px, 100%); display: grid; gap: 16px; animation: fw-in 0.25s var(--ease); }
+.fw .fw-auth-body.is-wide .fw-auth-form { width: min(560px, 100%); }
+.fw .fw-auth-form .fw-field + .fw-field { margin-top: 0; }
+.fw .fw-auth-head { display: grid; gap: 6px; margin-bottom: 4px; }
+.fw .fw-auth-head h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }
+.fw .fw-auth-head p { font-size: 14px; color: var(--tx-2); line-height: 1.55; }
+.fw .fw-auth-head strong { color: var(--tx); font-weight: 500; }
+.fw .fw-auth-badge { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--tx); }
+.fw .fw-auth-google { width: 100%; gap: 10px; }
+.fw .fw-auth-or { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--tx-3); }
+.fw .fw-auth-or::before, .fw .fw-auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+.fw .fw-auth-labelrow { display: flex; align-items: center; justify-content: space-between; }
+.fw .fw-auth-link { color: var(--tx-2); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-3); text-underline-offset: 3px; transition: color 0.12s; }
+.fw .fw-auth-link:hover { color: var(--tx); text-decoration-color: var(--tx-2); }
+.fw .fw-auth-link:disabled { opacity: 0.6; cursor: default; text-decoration: none; }
+.fw .fw-auth-submit { width: 100%; margin-top: 4px; }
+.fw .fw-auth-alt { text-align: center; font-size: 13px; color: var(--tx-3); }
+.fw .fw-auth-row { display: flex; justify-content: space-between; gap: 12px; }
+.fw .fw-auth-fine { font-size: 12.5px; color: var(--tx-3); }
+.fw .fw-auth-back { display: inline-flex; align-items: center; gap: 6px; justify-self: start; font-size: 13px; color: var(--tx-3); margin-bottom: 4px; }
+.fw .fw-auth-back:hover { color: var(--tx); }
+.fw .fw-auth-alert { padding: 10px 12px; border-radius: 9px; font-size: 13px; line-height: 1.45; animation: fw-in 0.16s var(--ease); }
+.fw .fw-auth-alert.is-error { background: var(--red-bg); color: var(--red); }
+.fw .fw-auth-alert.is-ok { background: var(--ok-bg); color: var(--ok); }
+.fw .fw-auth-agree { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--tx-2); line-height: 1.45; cursor: pointer; }
+.fw .fw-auth-agree input { margin-top: 2px; }
+.fw .fw-auth-agree a { color: var(--tx); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-3); }
+.fw .fw-pw { padding-inline-end: 4px; }
+.fw .fw-pw-eye { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--tx-3); transition: background-color 0.12s, color 0.12s; }
+.fw .fw-pw-eye:hover { background: var(--hover); color: var(--tx); }
+.fw .fw-auth-strength { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.fw .fw-auth-strength > div { flex: 1; display: flex; gap: 4px; }
+.fw .fw-auth-strength span { flex: 1; height: 3px; border-radius: 3px; background: var(--line-2); transition: background-color 0.2s; }
+.fw .fw-auth-strength small { font-size: 12px; color: var(--tx-3); min-width: 120px; text-align: end; }
+.fw .fw-auth-strength.s1 span:nth-child(1) { background: var(--red); }
+.fw .fw-auth-strength.s2 span:nth-child(-n+2) { background: var(--amber); }
+.fw .fw-auth-strength.s3 span:nth-child(-n+3) { background: var(--ok); }
+.fw .fw-auth-strength.s4 span { background: var(--ok); }
+.fw .fw-auth-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 18px 28px 22px; font-size: 12px; color: var(--tx-3); }
+.fw .fw-auth-foot a { color: var(--tx-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-3); }
+.fw .fw-auth-secure { display: inline-flex; align-items: center; gap: 6px; }
+.fw.fw-auth-loading { position: fixed; inset: 0; background: var(--bg-1); }
+
+/* Right-hand product showcase */
+.fw .fw-auth-side { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 36px; padding: 56px; background: var(--bg-0); border-inline-start: 1px solid var(--line); overflow: hidden; }
+.fw .fw-auth-side::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 22px 22px; mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 75%); }
+.fw .fw-auth-demo { position: relative; display: grid; gap: 14px; max-width: 460px; width: 100%; margin: 0 auto; }
+.fw .fw-auth-demo-msg { justify-self: end; max-width: 80%; padding: 10px 14px; border-radius: 12px; background: var(--bg-3); border: 1px solid var(--line-2); font-size: 13.5px; animation: fw-in 0.4s var(--ease) both; }
+.fw .fw-auth-demo-steps { display: grid; gap: 8px; padding-inline-start: 2px; }
+.fw .fw-auth-demo-steps span { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; color: var(--tx-2); animation: fw-in 0.4s var(--ease) both; }
+.fw .fw-auth-demo-steps span svg { color: var(--tx-3); }
+.fw .fw-auth-demo-steps span:nth-child(1) { animation-delay: 0.15s; } .fw .fw-auth-demo-steps span:nth-child(2) { animation-delay: 0.3s; }
+.fw .fw-auth-demo-steps span:nth-child(3) { animation-delay: 0.45s; } .fw .fw-auth-demo-steps span:nth-child(4) { animation-delay: 0.6s; }
+.fw .fw-auth-demo-steps .is-live { color: var(--tx); }
+.fw .fw-auth-demo-steps .is-live svg { color: var(--accent); animation: fw-blink 1.4s ease-in-out infinite; }
+.fw .fw-auth-demo-card { border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2); overflow: hidden; box-shadow: var(--shadow); animation: fw-in 0.5s var(--ease) 0.7s both; }
+.fw .fw-auth-demo-bar { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.fw .fw-auth-demo-bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-3); }
+.fw .fw-auth-demo-bar span { margin-inline-start: 10px; font: 11.5px var(--mono); color: var(--tx-3); }
+.fw .fw-auth-demo-page { padding: 22px; display: grid; gap: 8px; }
+.fw .fw-auth-demo-page b { width: 46%; height: 14px; border-radius: 4px; background: var(--tx); }
+.fw .fw-auth-demo-page i { height: 7px; border-radius: 4px; background: var(--line-3); }
+.fw .fw-auth-demo-page .w70 { width: 70%; } .fw .fw-auth-demo-page .w50 { width: 50%; }
+.fw .fw-auth-demo-page div { display: flex; gap: 8px; margin-top: 10px; }
+.fw .fw-auth-demo-page div span { flex: 1; height: 54px; border-radius: 8px; background: var(--bg-3); border: 1px solid var(--line); }
+.fw .fw-auth-quote { position: relative; max-width: 460px; width: 100%; margin: 0 auto; }
+.fw .fw-auth-quote strong { display: block; font-size: 17px; font-weight: 600; letter-spacing: -0.015em; }
+.fw .fw-auth-quote p { margin-top: 6px; font-size: 14px; color: var(--tx-2); line-height: 1.55; }
+
+/* Onboarding */
+.fw .fw-welcome .fw-stepper { margin-bottom: 8px; }
+.fw .fw-welcome-pane { display: grid; gap: 16px; animation: fw-in 0.22s var(--ease); }
+.fw .fw-welcome-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.fw .fw-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fw .fw-choice { position: relative; display: grid; gap: 6px; padding: 18px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2); text-align: start; transition: border-color 0.15s, background-color 0.15s, transform 0.12s var(--ease); }
+.fw .fw-choice:hover { border-color: var(--line-3); }
+.fw .fw-choice:active { transform: scale(0.99); }
+.fw .fw-choice.is-on { border-color: var(--tx); background: var(--bg-3); }
+.fw .fw-choice-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--bg-3); border: 1px solid var(--line-2); margin-bottom: 6px; }
+.fw .fw-choice strong { font-size: 14px; font-weight: 600; }
+.fw .fw-choice small { font-size: 12.5px; color: var(--tx-3); line-height: 1.45; }
+.fw .fw-choice-check { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--tx); color: var(--bg-1); opacity: 0; transform: scale(0.6); transition: opacity 0.15s, transform 0.15s var(--ease); }
+.fw .fw-choice.is-on .fw-choice-check { opacity: 1; transform: none; }
+.fw .fw-seg-choice { display: flex; flex-wrap: wrap; gap: 6px; }
+.fw .fw-seg-choice button { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-2); font-size: 13px; color: var(--tx-2); transition: background-color 0.12s, color 0.12s, border-color 0.12s; }
+.fw .fw-seg-choice button:hover { color: var(--tx); border-color: var(--line-3); }
+.fw .fw-seg-choice button.is-on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.fw .fw-goal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fw .fw-goal { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-2); font-size: 13px; color: var(--tx-2); text-align: start; transition: background-color 0.12s, color 0.12s, border-color 0.12s, transform 0.08s var(--ease); }
+.fw .fw-goal span { flex: 1; }
+.fw .fw-goal:hover { color: var(--tx); border-color: var(--line-3); }
+.fw .fw-goal:active { transform: scale(0.985); }
+.fw .fw-goal.is-on { border-color: var(--tx); color: var(--tx); background: var(--bg-3); }
+.fw .fw-goal-check { color: var(--tx); }
+.fw .fw-guide { display: grid; gap: 4px; }
+.fw .fw-guide-item { display: flex; gap: 14px; padding: 12px; border-radius: 10px; animation: fw-in 0.3s var(--ease) both; }
+.fw .fw-guide-item:hover { background: var(--hover); }
+.fw .fw-guide-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--bg-3); border: 1px solid var(--line-2); }
+.fw .fw-guide-item strong { font-size: 13.5px; font-weight: 600; }
+.fw .fw-guide-item p { margin-top: 2px; font-size: 13px; color: var(--tx-2); line-height: 1.5; }
+.fw .fw-guide-plugins { display: grid; gap: 10px; padding-top: 4px; }
+.fw .fw-guide-plugins .fw-field-label { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (max-width: 960px) {
+  .fw.fw-auth { grid-template-columns: minmax(0, 1fr); }
+  .fw .fw-auth-side { display: none; }
+}
+@media (max-width: 560px) {
+  .fw .fw-choice-grid, .fw .fw-goal-grid { grid-template-columns: 1fr; }
+  .fw .fw-auth-top, .fw .fw-auth-foot { padding-inline: 18px; }
+}
+.fw .fw-brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 600; font-size: 14.5px; letter-spacing: -0.015em; color: var(--tx); }

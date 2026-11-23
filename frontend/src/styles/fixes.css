@@ -1,0 +1,303 @@
+/* Bug fixes, loaded last. No new look: only colours that were wrong and layouts that broke on small screens. */
+
+/* Dropdown menus follow the page theme (they were always dark, unreadable in light). */
+.dd-menu {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  max-width: calc(100vw - 16px);
+}
+
+.dd-opt {
+  color: var(--text);
+}
+
+.dd-opt.focus,
+.dd-opt:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.dd-opt.selected {
+  background: var(--press);
+}
+
+/* Chosen chips are easy to see (team size, experience, goals). */
+.seg-choice button.on,
+.goal-chip.on {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+
+/* Admin and other tab rows scroll sideways on phones instead of cutting words. */
+.tabs {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs button {
+  flex: none;
+}
+
+/* Contact form: one clean focus ring instead of a ring plus an outline. */
+.mk-input:focus-visible,
+.mk-textarea:focus-visible {
+  outline: none;
+}
+
+.mk-input:focus,
+.mk-textarea:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px rgba(28, 28, 26, 0.08);
+}
+
+.mk-input::placeholder,
+.mk-textarea::placeholder {
+  color: var(--text-3);
+}
+
+.mk-textarea {
+  min-height: 140px;
+}
+
+.mk-count {
+  justify-self: end;
+  margin-top: -10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Settings: one column on phones, the section list becomes a row you can swipe. */
+@media (max-width: 760px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .settings-layout > * {
+    min-width: 0;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-group {
+    flex-direction: row;
+    flex: none;
+    gap: 4px;
+  }
+
+  .settings-group-title {
+    display: none;
+  }
+
+  .settings-nav a {
+    flex: none;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+  }
+
+  .settings-nav a.active {
+    border-color: var(--text);
+  }
+
+  .settings-card {
+    padding: 16px;
+  }
+}
+
+/* Composer menus (model, skills, plus) stay inside the screen on phones. */
+@media (max-width: 640px) {
+  .composer {
+    position: relative;
+  }
+
+  .composer .pop-anchor {
+    position: static;
+  }
+
+  .composer .popover.up,
+  .composer .popover.up.right {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* Admin: announcements */
+.announce {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.announce-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.announce-form .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.announce-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.announce-tips ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+@media (max-width: 860px) {
+  .announce,
+  .announce-form .form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.email-choice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.email-choice strong {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.email-choice p {
+  margin: 2px 0 0;
+}
+
+/* Download page: phone apps */
+.mk-downloads.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+@media (max-width: 720px) {
+  .mk-downloads.two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Composer: one steady surface, no motion (like a professional agent input) */
+.composer,
+.composer:focus-within,
+.composer.big,
+.composer.big:focus-within {
+  animation: none !important;
+  transition: none !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 20px -12px rgba(0, 0, 0, 0.22) !important;
+}
+
+.composer:focus-within,
+.composer.big:focus-within {
+  border-color: color-mix(in srgb, var(--text) 30%, transparent) !important;
+}
+
+.composer *,
+.composer *::before,
+.composer *::after {
+  animation: none;
+  transition: none !important;
+}
+
+.composer .spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.composer button:hover,
+.composer button:active,
+.composer .send:hover,
+.composer .send:active {
+  transform: none !important;
+}
+
+.composer-bar {
+  border-top: 0 !important;
+  margin-top: 4px !important;
+  padding-top: 0 !important;
+}
+
+.composer textarea,
+.composer textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Settings: your browser */
+.browser-install {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.browser-install code {
+  font-size: 13px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--hover);
+}
+
+.browser-abilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.browser-ability {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.browser-ability div {
+  display: grid;
+  gap: 2px;
+}
