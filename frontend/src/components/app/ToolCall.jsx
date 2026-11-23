@@ -5,6 +5,8 @@ import {
   TerminalSquare, Wrench, X, ExternalLink, FileSearch, Laptop, MousePointerClick, Github, Mail, Clipboard, ImageIcon,
   Keyboard, AppWindow, Move, Clock
 } from "lucide-react"
+import ForkMark, { markMode } from "./ForkMark"
+import WaveText from "./WaveText"
 import Markdown from "./Markdown"
 import { rawUrl } from "../../lib/api"
 
@@ -389,13 +391,13 @@ export default function ToolCall({ call, result, live, waiting, subs, wid, respo
   }
 
   const showImage = SHOT_TOOLS.includes(name) && meta.image && !expanded
-  const statusIcon = running ? <Loader2 size={14} className="fw-spin" /> : failed ? <X size={14} /> : result ? <Check size={14} /> : <Loader2 size={14} className="fw-spin" />
+  const statusIcon = running ? <ForkMark size={15} active mode={markMode(name)} /> : failed ? <X size={14} /> : result ? <Check size={14} /> : <ForkMark size={15} active mode={markMode(name)} />
 
   return (
     <div className={"fw-tool" + (running ? " fw-running" : "") + (failed ? " fw-failed" : "") + (name === "create_tool" ? " fw-ability" : "") + (expanded ? " fw-open" : "")}>
       <button type="button" className="fw-tool-head" onClick={() => setOpen(!expanded)}>
         <span className="fw-tool-icon"><Icon size={15} /></span>
-        <span className={"fw-tool-verb"}>{running ? ING[info.verb] || info.verb : info.verb}</span>
+        <span className={"fw-tool-verb"}>{running ? <WaveText text={ING[info.verb] || info.verb} /> : info.verb}</span>
         {info.target && <span className={"fw-tool-target" + (info.code || name === "grep" || name === "glob" ? " fw-mono" : "")} dir="auto">{info.target}</span>}
         {info.diff && info.diff.added !== undefined && (
           <span className="fw-tool-diffstat"><span className="fw-add">+{info.diff.added}</span><span className="fw-del">−{info.diff.removed}</span></span>
@@ -443,10 +445,10 @@ export function DraftCall({ draft }) {
     <div className="fw-tool fw-running fw-open fw-draft">
       <div className="fw-tool-head">
         <span className="fw-tool-icon"><Icon size={15} /></span>
-        <span className="fw-tool-verb">{writing ? "Writing" : info.verb}</span>
+        <span className="fw-tool-verb"><WaveText text={writing ? "Writing" : info.verb} /></span>
         {info.target && <span className="fw-tool-target" dir="auto">{info.target}</span>}
         <span className="fw-tool-spacer" />
-        <span className="fw-tool-status"><Loader2 size={14} className="fw-spin" /></span>
+        <span className="fw-tool-status"><ForkMark size={15} active mode={writing ? "write" : markMode(name)} /></span>
       </div>
       {writing && content && (
         <div className="fw-tool-body"><LivePre text={content.split("\n").slice(-18).join("\n")} follow /></div>

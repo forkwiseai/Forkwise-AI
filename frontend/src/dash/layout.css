@@ -281,13 +281,9 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-process-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--tx-3); }
 .fw .fw-process-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--tx-2); font-size: 13.5px; }
 .fw .fw-process-time { font-size: 12px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
-.fw .fw-process { animation: fw-soft-in 0.35s ease both; }
-.fw .fw-process-icon { animation: fw-soft-in 0.3s ease both; }
-.fw .fw-process-text { animation: fw-soft-in 0.3s ease both, fw-shimmer 2.4s linear infinite; background: linear-gradient(90deg, var(--tx-3) 0%, var(--tx-3) 40%, var(--tx) 50%, var(--tx-3) 60%, var(--tx-3) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .fw .fw-reasoning.fw-thinking .fw-reasoning-text { max-height: 132px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 36px); mask-image: linear-gradient(to bottom, transparent 0, #000 36px); }
 @keyframes fw-soft-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @keyframes fw-shimmer { from { background-position: 125% 0; } to { background-position: -125% 0; } }
-@media (prefers-reduced-motion: reduce) { .fw .fw-process, .fw .fw-process-icon, .fw .fw-process-text { animation: none; } }
 
 /* Reasoning */
 .fw .fw-reasoning > button { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-3); }
@@ -329,13 +325,13 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-flow-node { display: flex; }
 .fw .fw-flow-dot { display: none; }
 .fw .fw-flow-body { flex: 1; min-width: 0; }
-.fw .fw-flow-head { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; padding: 4px 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-2); text-align: start; transition: background-color 0.1s; }
+.fw .fw-flow-head { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 32px; padding: 4px 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-2); text-align: start; }
 .fw .fw-flow-head:hover { background: var(--hover); }
 .fw .fw-flow-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--bg-3); border: 1px solid var(--line); color: var(--tx-2); }
 .fw .fw-flow-title { flex: none; font-weight: 500; color: var(--tx); }
 .fw .fw-flow-node.fw-failed .fw-flow-title { color: var(--red); }
 .fw .fw-flow-hint { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; color: var(--tx-3); font-family: var(--mono); }
-.fw .fw-flow-chev { flex: none; margin-left: auto; color: var(--tx-4); transition: transform 0.15s; }
+.fw .fw-flow-chev { flex: none; margin-left: auto; color: var(--tx-4); }
 .fw .fw-flow-chev.fw-open { transform: rotate(90deg); }
 .fw .fw-flow-children { display: grid; gap: 1px; margin: 2px 0 8px 10px; padding-left: 16px; border-left: 1px solid var(--line-2); }
 .fw .fw-flow-thought-text { white-space: pre-wrap; font-size: 13px; line-height: 1.6; color: var(--tx-3); padding: 4px 0 6px; }
@@ -348,7 +344,7 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-tool-diffstat .fw-del, .fw .fw-diff-line.fw-del { color: var(--red); }
 
 .fw .fw-tool { min-width: 0; }
-.fw .fw-tool-head { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 4px 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-2); text-align: start; transition: background-color 0.1s; }
+.fw .fw-tool-head { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 4px 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-2); text-align: start; }
 .fw .fw-tool-head:hover { background: var(--hover); }
 .fw .fw-tool-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--bg-3); border: 1px solid var(--line); color: var(--tx-2); }
 .fw .fw-tool-verb { flex: none; font-weight: 500; color: var(--tx); white-space: nowrap; }
@@ -360,7 +356,7 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-tool-status { flex: none; display: grid; place-items: center; color: var(--tx-4); }
 .fw .fw-tool.fw-running .fw-tool-status { color: var(--brand); }
 .fw .fw-tool-status.fw-bad { color: var(--red); }
-.fw .fw-tool-chevron { flex: none; color: var(--tx-4); transition: transform 0.15s; }
+.fw .fw-tool-chevron { flex: none; color: var(--tx-4); }
 .fw .fw-tool.fw-open .fw-tool-chevron { transform: rotate(90deg); }
 .fw .fw-tool-body { display: grid; gap: 8px; margin: 4px 0 8px; }
 .fw .fw-tool-inline { display: flex; gap: 6px; margin: 4px 0 6px 31px; }
@@ -653,28 +649,26 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-voice-btn.end { background: #e5484d; color: #fff; }
 .fw .fw-voice-btn.end:hover { background: #d13d42; }
 
-/* Forkwise mark: rests as the logo shape, folds and fans out while the agent works */
+/* Forkwise mark: drawn in code, its pose is animated from script */
 .fw .fw-fork { flex: none; display: block; overflow: visible; color: var(--tx); }
 .fw .fw-fork path { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
-.fw .fw-fork .fk-branch path { opacity: 0.55; }
+.fw .fw-fork .fk-side { opacity: 0.55; }
 .fw .fw-fork circle { fill: currentColor; }
-.fw .fw-fork .fk-tip { opacity: 0.75; }
-.fw .fw-fork .fk-head { fill: var(--ok, #4ade80); opacity: 1; }
-.fw .fw-fork .fk-branch, .fw .fw-fork .fk-tip { transform-box: view-box; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease; }
-.fw .fw-fork .fk-branch { transform-origin: 5px 12px; }
-.fw .fw-fork .fk-tip-a { transform-origin: 18.6px 5.5px; }
-.fw .fw-fork .fk-tip-b { transform-origin: 18.6px 12px; }
-.fw .fw-fork .fk-tip-c { transform-origin: 18.6px 18.5px; }
-.fw .fw-fork.is-active .fk-top { animation: fk-fold 1.8s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
-.fw .fw-fork.is-active .fk-bottom { animation: fk-fold 1.8s cubic-bezier(0.45, 0, 0.25, 1) 0.18s infinite; }
-.fw .fw-fork.is-active .fk-tip-a { animation: fk-pulse 1.8s ease-in-out 0s infinite; }
-.fw .fw-fork.is-active .fk-tip-b { animation: fk-pulse 1.8s ease-in-out 0.3s infinite; }
-.fw .fw-fork.is-active .fk-tip-c { animation: fk-pulse 1.8s ease-in-out 0.6s infinite; }
-.fw .fw-fork.is-active .fk-root { animation: fk-root 1.8s ease-in-out infinite; transform-box: view-box; transform-origin: 5px 12px; }
-@keyframes fk-fold { 0%, 100% { transform: scaleY(1); } 45%, 55% { transform: scaleY(0.14); } }
-@keyframes fk-pulse { 0%, 100% { transform: scale(1); opacity: 0.75; } 40% { transform: scale(1.45); opacity: 1; } }
-@keyframes fk-root { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.82); } }
-@media (prefers-reduced-motion: reduce) { .fw .fw-fork * { animation: none !important; } }
+.fw .fw-fork .fk-side-tip { opacity: 0.75; }
+.fw .fw-fork .fk-head { fill: var(--ok, #4ade80); }
+/* Running labels light up letter by letter */
+.fw .fw-wave { display: inline; white-space: pre; }
+.fw .fw-wave > span { color: var(--tx-3); animation: fw-letter var(--wave-time, 1.6s) ease-in-out var(--wave-delay, 0s) infinite !important; }
+@keyframes fw-letter { 0%, 100% { color: var(--tx-3); } 18% { color: var(--tx); } 36% { color: var(--tx-3); } }
+.fw .fw-wave-sweep { background: linear-gradient(90deg, var(--tx-3) 0%, var(--tx-3) 38%, var(--tx) 50%, var(--tx-3) 62%, var(--tx-3) 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: fw-sweep-rtl 2.2s linear infinite !important; }
+@keyframes fw-sweep-rtl { from { background-position: -130% 0; } to { background-position: 130% 0; } }
 .fw .fw-run-mark { display: inline-flex; align-items: center; gap: 8px; }
-.fw .fw-run-mark .fw-run-label { background: linear-gradient(90deg, var(--tx) 0%, var(--tx) 40%, var(--tx-3) 50%, var(--tx) 60%, var(--tx) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: fw-shimmer 2.6s linear infinite; }
-.fw .fw-done-mark { display: inline-flex; align-items: center; margin-right: 4px; animation: fw-soft-in 0.5s ease both; }
+.fw .fw-done-mark { display: inline-flex; align-items: center; margin-right: 4px; }
+
+/* Step lines: no motion on hover or focus */
+.fw .fw-flow-head, .fw .fw-tool-head, .fw .fw-steps-head, .fw .fw-reasoning > button, .fw .fw-step-thought, .fw .fw-flow-chev, .fw .fw-tool-chevron, .fw .fw-steps-chev { transition: none !important; animation: none; }
+.fw .fw-flow-head:focus, .fw .fw-tool-head:focus, .fw .fw-steps-head:focus, .fw .fw-reasoning > button:focus { outline: none; }
+.fw .fw-flow-head:focus-visible, .fw .fw-tool-head:focus-visible, .fw .fw-steps-head:focus-visible { outline: 1px solid var(--line-2); outline-offset: 1px; }
+.fw .fw-run-label .fw-wave > span { color: var(--tx-2); animation: fw-letter-strong var(--wave-time, 1.6s) ease-in-out var(--wave-delay, 0s) infinite !important; }
+@keyframes fw-letter-strong { 0%, 100% { color: var(--tx-2); } 18% { color: var(--tx); } 36% { color: var(--tx-2); } }
+@media (prefers-reduced-motion: reduce) { .fw .fw-wave > span, .fw .fw-wave-sweep, .fw .fw-run-label .fw-wave > span { animation: none !important; color: var(--tx-2); -webkit-text-fill-color: currentColor; } }

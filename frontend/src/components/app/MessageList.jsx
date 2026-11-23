@@ -5,7 +5,8 @@ import { DraftCall, liveLabel, partialField } from "./ToolCall"
 import Flow, { buildFlow } from "./Flow"
 import { rawUrl } from "../../lib/api"
 import { useSmoothText } from "../../lib/smooth"
-import ForkMark from "./ForkMark"
+import ForkMark, { markMode } from "./ForkMark"
+import WaveText from "./WaveText"
 
 function Reasoning({ text, live }) {
   const [open, setOpen] = useState(false)
@@ -144,24 +145,24 @@ function ProcessLine({ state, drafts, results }) {
     const timer = setInterval(() => setSeconds(Math.floor((Date.now() - began) / 1000)), 1000)
     return () => clearInterval(timer)
   }, [live.runId])
-  let label = { icon: Sparkles, text: live.text ? "Writing the answer" : live.reasoning ? "Thinking" : "Forkwise is working" }
+  let label = { icon: Sparkles, mode: live.text ? "write" : live.reasoning ? "think" : "work", text: live.text ? "Writing the answer" : live.reasoning ? "Thinking" : "Forkwise is working" }
   if (live.compacting) label = { icon: Brain, text: "Summarizing earlier messages" }
   const calls = []
   for (const message of state.messages) if (message.role === "assistant") for (const call of message.tool_calls || []) calls.push(call)
   const runningIds = Object.keys(live.tools).filter((id) => live.tools[id].status === "running" && !results[id])
   if (runningIds.length > 0) {
     const call = calls.find((item) => item.id === runningIds[runningIds.length - 1])
-    if (call) label = liveLabel(call.function.name, parseArgs(call.function.arguments))
+    if (call) label = { ...liveLabel(call.function.name, parseArgs(call.function.arguments)), mode: markMode(call.function.name) }
   } else if (drafts.length > 0) {
     const draft = drafts[drafts.length - 1]
-    label = liveLabel(draft.name || "", { path: partialField(draft.args, "path"), command: partialField(draft.args, "command"), description: partialField(draft.args, "description"), query: partialField(draft.args, "query"), url: partialField(draft.args, "url") })
+    label = { mode: markMode(draft.name || ""), ...liveLabel(draft.name || "", { path: partialField(draft.args, "path"), command: partialField(draft.args, "command"), description: partialField(draft.args, "description"), query: partialField(draft.args, "query"), url: partialField(draft.args, "url") }) }
   }
   const steady = useSteadyLabel(label)
   const Icon = steady.icon || Sparkles
   return (
     <div className="fw-process" role="status" aria-live="polite">
-      <span className="fw-process-icon" key={"i" + steady.text}>{Icon === Sparkles ? <ForkMark size={16} active /> : <Icon size={14} />}</span>
-      <span className="fw-process-text" dir="auto" key={steady.text}>{steady.text}</span>
+      <span className="fw-process-icon"><ForkMark size={17} active mode={steady.mode || "work"} /></span>
+      <span className="fw-process-text"><WaveText text={steady.text} key={steady.text} /></span>
       <span className="fw-process-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
     </div>
   )

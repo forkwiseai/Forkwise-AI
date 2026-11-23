@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { FileDiff, Square } from "lucide-react"
 import ForkMark from "./ForkMark"
+import WaveText from "./WaveText"
 
 function parse(raw) {
   if (!raw) return {}
@@ -65,7 +66,7 @@ export default function RunBar({ state, onStop, onOpenChanges }) {
           <span className="fw-run-label" dir="auto">{label}</span>
         </>
       ) : (
-        <span className="fw-run-mark"><ForkMark size={17} active /><span className="fw-run-label" dir="auto">{label}</span></span>
+        <span className="fw-run-mark"><ForkMark size={17} active /><span className="fw-run-label"><WaveText text={label} /></span></span>
       )}
       <span className="fw-run-meta">{calls.length} {calls.length === 1 ? "step" : "steps"}</span>
       <span className="fw-run-meta fw-mono">{clock(seconds)}</span>

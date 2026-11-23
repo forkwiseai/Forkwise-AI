@@ -3,6 +3,8 @@ import { AlertTriangle, Bot, Brain, Check, ChevronDown, ChevronRight, FilePen, G
 
 const CAT_ICON = { explore: Search, edit: FilePen, run: TerminalSquare, browse: Globe, computer: Laptop, github: Github, gmail: Mail, google: Globe, connector: Plug, ability: Sparkles, agent: Bot, other: Wrench }
 import Markdown from "./Markdown"
+import ForkMark, { markMode } from "./ForkMark"
+import WaveText from "./WaveText"
 import { useSettledText } from "../../lib/smooth"
 import ToolCall, { describe } from "./ToolCall"
 
@@ -140,7 +142,7 @@ export function buildFlow(items) {
 }
 
 function Dot({ status }) {
-  if (status === "running") return <span className="fw-flow-dot fw-running"><Loader2 size={11} className="fw-spin" /></span>
+  if (status === "running") return <span className="fw-flow-dot fw-running"><ForkMark size={13} active /></span>
   if (status === "failed") return <span className="fw-flow-dot fw-failed"><X size={10} /></span>
   if (status === "waiting") return <span className="fw-flow-dot fw-waiting">!</span>
   if (status === "done") return <span className="fw-flow-dot fw-done"><Check size={10} /></span>
@@ -210,8 +212,8 @@ function Group({ group, results, ctx }) {
         ) : (
           <>
             <button type="button" className="fw-flow-head" onClick={() => setOpen(!expanded)}>
-              <span className="fw-flow-icon">{status === "running" ? <Loader2 size={14} className="fw-spin" /> : (() => { const Icon = CAT_ICON[group.category] || Wrench; return <Icon size={14} /> })()}</span>
-              <span className={"fw-flow-title"}>{groupTitle(group, results)}</span>
+              <span className="fw-flow-icon">{status === "running" ? <ForkMark size={15} active mode={markMode(group.category)} /> : (() => { const Icon = CAT_ICON[group.category] || Wrench; return <Icon size={14} /> })()}</span>
+              <span className={"fw-flow-title"}>{status === "running" ? <WaveText text={groupTitle(group, results)} /> : groupTitle(group, results)}</span>
               {!expanded && <span className="fw-flow-hint" dir="auto">{groupHint(group)}</span>}
               {totals && <span className="fw-tool-diffstat"><span className="fw-add">+{totals.added}</span><span className="fw-del">−{totals.removed}</span></span>}
               <ChevronRight size={13} className={"fw-flow-chev" + (expanded ? " fw-open" : "")} />
@@ -293,8 +295,8 @@ function Steps({ nodes, results, ctx }) {
   return (
     <div className={"fw-steps-wrap fw-" + status}>
       <button type="button" className="fw-steps-head" onClick={() => setOpen(!expanded)} aria-expanded={expanded}>
-        {busy && <Loader2 size={13} className="fw-spin" />}
-        <span>{summarize(nodes)}</span>
+        {busy && <ForkMark size={15} active />}
+        <span>{busy ? <WaveText text={summarize(nodes)} /> : summarize(nodes)}</span>
         {totals && <span className="fw-tool-diffstat"><span className="fw-add">+{totals.added}</span><span className="fw-del">−{totals.removed}</span></span>}
         <ChevronDown size={14} className={"fw-steps-chev" + (expanded ? " fw-open" : "")} />
       </button>
