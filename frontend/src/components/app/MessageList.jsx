@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Brain, Check, ChevronDown, Copy, FileText, History, Info, AlertTriangle, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react"
 import Markdown from "./Markdown"
 import { DraftCall, liveLabel, partialField } from "./ToolCall"
@@ -8,15 +8,20 @@ import { useSmoothText } from "../../lib/smooth"
 
 function Reasoning({ text, live }) {
   const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  useEffect(() => {
+    // While thinking, the newest thoughts slide up from the bottom instead of the box jumping.
+    if (live && !open && box.current) box.current.scrollTop = box.current.scrollHeight
+  }, [text, live, open])
   if (!text || !text.trim()) return null
   return (
-    <div className={"fw-reasoning" + (open ? " fw-open" : "")}>
+    <div className={"fw-reasoning" + (open ? " fw-open" : "") + (live && !open ? " fw-thinking" : "")}>
       <button type="button" onClick={() => setOpen(!open)}>
         <Brain size={14} />
         <span>{live ? "Thinking…" : "Thought process"}</span>
         <ChevronDown size={14} />
       </button>
-      {(open || live) && <div className="fw-reasoning-text" dir="auto">{live && !open ? text.slice(-500) : text}</div>}
+      {(open || live) && <div className="fw-reasoning-text" dir="auto" ref={box}>{live && !open ? text.slice(-1500) : text}</div>}
     </div>
   )
 }
@@ -111,6 +116,24 @@ function LiveText({ text }) {
   return <Markdown text={shown} />
 }
 
+// Keeps each status on screen for a moment, so quick changes read as calm steps, not flicker.
+function useSteadyLabel(label) {
+  const [shown, setShown] = useState(label)
+  const since = useRef(Date.now())
+  const latest = useRef(label)
+  latest.current = label
+  useEffect(() => {
+    if (label.text === shown.text) return
+    const wait = Math.max(0, 900 - (Date.now() - since.current))
+    const timer = setTimeout(() => {
+      since.current = Date.now()
+      setShown(latest.current)
+    }, wait)
+    return () => clearTimeout(timer)
+  }, [label.text, shown.text])
+  return shown
+}
+
 function ProcessLine({ state, drafts, results }) {
   const live = state.live
   const [seconds, setSeconds] = useState(0)
@@ -132,11 +155,12 @@ function ProcessLine({ state, drafts, results }) {
     const draft = drafts[drafts.length - 1]
     label = liveLabel(draft.name || "", { path: partialField(draft.args, "path"), command: partialField(draft.args, "command"), description: partialField(draft.args, "description"), query: partialField(draft.args, "query"), url: partialField(draft.args, "url") })
   }
-  const Icon = label.icon || Sparkles
+  const steady = useSteadyLabel(label)
+  const Icon = steady.icon || Sparkles
   return (
     <div className="fw-process" role="status" aria-live="polite">
-      <span className="fw-process-icon"><Icon size={14} /></span>
-      <span className="fw-process-text" dir="auto">{label.text}</span>
+      <span className="fw-process-icon" key={"i" + steady.text}><Icon size={14} /></span>
+      <span className="fw-process-text" dir="auto" key={steady.text}>{steady.text}</span>
       <span className="fw-process-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
     </div>
   )

@@ -480,7 +480,7 @@ def sign_calls(messages, model):
     return result
 
 
-async def stream_single(model, messages, tools, on_delta, max_tokens, temperature, stop_flag, attempts, effort=""):
+async def stream_single(model, messages, tools, on_delta, max_tokens, temperature, stop_flag, attempts, effort="", first_wait=None):
     body = {
         "model": model["id"],
         "messages": for_plain_models(with_cache(sign_calls(clean_messages(messages), model), model), model),
@@ -506,7 +506,7 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
     while attempt < attempts:
         streamed = {"any": False}
         try:
-            result = await stream_once(model, body, on_delta, streamed, stop_flag)
+            result = await stream_once(model, body, on_delta, streamed, stop_flag, first_wait)
             return await finish_cut_answer(model, body, on_delta, stop_flag, result)
         except ModelError as problem:
             last_problem = str(problem)
@@ -542,7 +542,8 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
                 raise
         except (httpx.TransportError, httpx.TimeoutException) as problem:
             last_problem = "Connection problem: " + str(problem)
-            if streamed["any"]:
+            if streamed["any"] or first_wait:
+                # With a backup model waiting, retrying a silent model only makes the person wait longer.
                 raise ModelError(last_problem)
         await asyncio.sleep(min(30, 2 ** attempt * 1.5))
         attempt = attempt + 1
@@ -687,6 +688,13 @@ async def stream_chat(model, messages, tools=None, on_delta=None, max_tokens=160
         return await stream_single(model, messages, tools, on_delta, fit_output(max_tokens, room), temperature, stop_flag, 5, effort)
     options = candidates_for(model)
     last = None
+    shown = {"any": False}
+
+    async def watched(kind, data):
+        shown["any"] = True
+        if on_delta:
+            await on_delta(kind, data)
+
     for position in range(len(options)):
         item = options[position]
         last_one = position == len(options) - 1
@@ -695,28 +703,35 @@ async def stream_chat(model, messages, tools=None, on_delta=None, max_tokens=160
         room = real_context(item) - need - 500
         if room < MIN_ANSWER_ROOM and not last_one:
             continue
+        if item["key"] != model["key"] and on_delta:
+            # Tell the person now, not after the whole answer, so a long wait has a reason.
+            await on_delta("switch", {"label": item.get("label") or item["key"]})
         try:
-            answer = await stream_single(item, messages, tools, on_delta, fit_output(max_tokens, room), temperature, stop_flag, 5 if last_one else 2, effort)
+            answer = await stream_single(item, messages, tools, watched, fit_output(max_tokens, room), temperature, stop_flag, 5 if last_one else 2, effort, None if last_one else BACKUP_WAIT)
             if item["key"] != model["key"]:
                 answer["switched_to"] = item["label"]
             return answer
         except ModelError as problem:
             last = problem
             text = str(problem)
+            moving_on = False
             if is_overflow(text):
                 learn_limit(item, text)
-                if not last_one:
-                    continue
-                raise
-            if text.startswith("Connection problem") and not last_one:
-                COOLDOWNS[item["key"]] = time.time() + 300
+                moving_on = not last_one
+            elif (text.startswith("Connection problem") or text.startswith("Provider error")) and not last_one:
+                COOLDOWNS[item["key"]] = time.time() + 600
                 print("MODEL FAILOVER unreachable", item["key"], text[:160], flush=True)
-                continue
-            if status_of(text) in FAILOVER_STATUS and not last_one:
+                moving_on = True
+            elif status_of(text) in FAILOVER_STATUS and not last_one:
                 COOLDOWNS[item["key"]] = time.time() + wait_seconds(text)
                 print("MODEL FAILOVER", item["key"], text[:160], flush=True)
-                continue
-            raise
+                moving_on = True
+            if not moving_on:
+                raise
+            if shown["any"] and on_delta:
+                # The half answer from the failed model must not stay on screen next to the new one.
+                await on_delta("reset", None)
+            shown["any"] = False
     if last is not None:
         raise last
     raise ModelError("The model did not answer.")
@@ -739,6 +754,9 @@ def retryable(text):
 
 FIRST_WAIT = int(config.text("STREAM_FIRST_SECONDS", "240") or 240)
 IDLE_WAIT = int(config.text("STREAM_IDLE_SECONDS", "60") or 60)
+# When another model can take over, a model that has not started answering is given up on sooner.
+BACKUP_WAIT = int(config.text("STREAM_BACKUP_SECONDS", "45") or 45)
+CONNECT_WAIT = int(config.text("STREAM_CONNECT_SECONDS", "8") or 8)
 CONTINUE_NOTE = "Your last message was cut off by a connection problem. Continue exactly where it stopped, without repeating anything and without saying that you are continuing."
 
 
@@ -763,14 +781,14 @@ async def next_line(lines, waited, stop_flag):
             raise asyncio.TimeoutError()
 
 
-async def stream_once(model, body, on_delta, streamed, stop_flag):
+async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=None):
     content = []
     reasoning = []
     calls = {}
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     finish = ""
     last_index = 0
-    timeout = httpx.Timeout(connect=20, read=300, write=60, pool=20)
+    timeout = httpx.Timeout(connect=CONNECT_WAIT, read=(first_wait or max(FIRST_WAIT, IDLE_WAIT)) + 5, write=60, pool=20)
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream("POST", model["url"] + "/chat/completions", headers=headers_for(model), json=body) as response:
             if response.status_code != 200:
@@ -781,7 +799,7 @@ async def stream_once(model, body, on_delta, streamed, stop_flag):
                 # A provider can stall in the middle of an answer. Waiting minutes for it leaves the
                 # chat frozen, so a long silence after the answer started counts as a broken stream.
                 try:
-                    line = await next_line(lines, IDLE_WAIT if streamed["any"] else FIRST_WAIT, stop_flag)
+                    line = await next_line(lines, IDLE_WAIT if streamed["any"] else (first_wait or FIRST_WAIT), stop_flag)
                 except StopAsyncIteration:
                     break
                 except StreamStopped:

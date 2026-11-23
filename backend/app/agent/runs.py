@@ -504,7 +504,14 @@ def recover_calls(answer, specs_list):
 
 
 async def handle_delta(run, step, kind, data):
-    if kind == "text":
+    if kind == "reset":
+        reset_stream(run)
+        run.emit("text_reset", {"step": step})
+    elif kind == "switch":
+        if getattr(run, "told_switch", "") != data["label"]:
+            run.told_switch = data["label"]
+            run.emit("notice", {"text": "The first model is not answering, so " + data["label"] + " is answering instead."})
+    elif kind == "text":
         stream_text(run, step, data)
     elif kind == "reasoning":
         run.emit("reasoning", {"step": step, "text": data})
@@ -596,6 +603,8 @@ async def model_turn(run, step):
 
     answer = None
     for attempt in range(4):
+        if attempt > 0:
+            run.emit("text_reset", {"step": step})
         reset_stream(run)
         try:
             answer = await llm.stream_chat(run.model, messages, tools=run.tool_specs, on_delta=on_delta, stop_flag=run.stop_flag, effort=run.effort)
@@ -613,11 +622,6 @@ async def model_turn(run, step):
                 raise
             removed = run.tool_specs.pop(bad)
             run.emit("notice", {"text": "Turned off the tool " + removed["function"]["name"] + " for this task because the AI provider rejected its definition."})
-    if answer.get("switched_to"):
-        told = getattr(run, "told_switch", "")
-        if told != answer["switched_to"]:
-            run.told_switch = answer["switched_to"]
-            run.emit("notice", {"text": "Switched to " + answer["switched_to"] + " because the first model is not available right now."})
     return answer
 
 

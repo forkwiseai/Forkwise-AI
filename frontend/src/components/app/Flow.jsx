@@ -3,6 +3,7 @@ import { AlertTriangle, Bot, Brain, Check, ChevronDown, ChevronRight, FilePen, G
 
 const CAT_ICON = { explore: Search, edit: FilePen, run: TerminalSquare, browse: Globe, computer: Laptop, github: Github, gmail: Mail, google: Globe, connector: Plug, ability: Sparkles, agent: Bot, other: Wrench }
 import Markdown from "./Markdown"
+import { useSettledText } from "../../lib/smooth"
 import ToolCall, { describe } from "./ToolCall"
 
 export const CATEGORY = {
@@ -329,11 +330,15 @@ export default function Flow({ nodes, results, ctx }) {
       {blocks.map((node) => {
         if (node.type === "steps") return <Steps key={node.key} nodes={node.nodes} results={results} ctx={ctx} />
         if (node.type === "note") return <div key={node.key} className="fw-flow-note">Earlier messages were summarized to save space.</div>
-        if (node.type === "say") return <div key={node.key} className="fw-flow-say"><Markdown text={node.text} /></div>
+        if (node.type === "say") return <div key={node.key} className="fw-flow-say"><SayText text={node.text} /></div>
         return <div key={node.key} className="fw-flow-block"><FlowCall call={node.call} results={results} ctx={ctx} /></div>
       })}
     </div>
   )
+}
+
+function SayText({ text }) {
+  return <Markdown text={useSettledText(text)} />
 }
 
 export function FlowError({ text }) {

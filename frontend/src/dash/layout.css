@@ -281,6 +281,13 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-process-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--tx-3); }
 .fw .fw-process-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--tx-2); font-size: 13.5px; }
 .fw .fw-process-time { font-size: 12px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+.fw .fw-process { animation: fw-soft-in 0.35s ease both; }
+.fw .fw-process-icon { animation: fw-soft-in 0.3s ease both; }
+.fw .fw-process-text { animation: fw-soft-in 0.3s ease both, fw-shimmer 2.4s linear infinite; background: linear-gradient(90deg, var(--tx-3) 0%, var(--tx-3) 40%, var(--tx) 50%, var(--tx-3) 60%, var(--tx-3) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.fw .fw-reasoning.fw-thinking .fw-reasoning-text { max-height: 132px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 36px); mask-image: linear-gradient(to bottom, transparent 0, #000 36px); }
+@keyframes fw-soft-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@keyframes fw-shimmer { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+@media (prefers-reduced-motion: reduce) { .fw .fw-process, .fw .fw-process-icon, .fw .fw-process-text { animation: none; } }
 
 /* Reasoning */
 .fw .fw-reasoning > button { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; margin-left: -8px; border-radius: 8px; font-size: 13.5px; color: var(--tx-3); }

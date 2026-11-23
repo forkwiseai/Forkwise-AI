@@ -73,7 +73,7 @@ function applyEvent(state, event) {
     return { ...state, messages, live }
   }
   if (kind === "checkpoint") return { ...state, checkpoint: event.commit, live }
-  if (kind === "step") {
+  if (kind === "step" || kind === "text_reset") {
     live.text = ""
     live.reasoning = ""
     live.drafts = {}
