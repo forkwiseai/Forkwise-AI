@@ -57,8 +57,13 @@ export function openEvents(runId, after, onEvent, onClose) {
   let lastSeen = Date.now()
   // The server sends a ping every 15 seconds. A silent connection (a proxy or a sleeping laptop
   // can freeze it without an error) is closed and reopened, so the chat never needs a refresh.
+  const opened = Date.now()
   const watchdog = setInterval(() => {
-    if (closed || Date.now() - lastSeen < 40000) return
+    if (closed) return
+    // Never connected: the browser may be out of connections to this site (too many tabs), so give
+    // up on this attempt and let the chat reload and try again instead of waiting forever.
+    const stuck = source.readyState === 0 && Date.now() - opened > 15000
+    if (!stuck && Date.now() - lastSeen < 40000) return
     closed = true
     clearInterval(watchdog)
     source.close()

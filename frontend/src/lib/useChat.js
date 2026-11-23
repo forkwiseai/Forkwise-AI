@@ -172,11 +172,15 @@ export function useChat(chatId, handlers) {
   const listen = useCallback((runId, after) => {
     if (closeRef.current) closeRef.current()
     seqRef.current = after
+    listeningRun.current = runId
     closeRef.current = openEvents(runId, after, (event) => {
       seqRef.current = event.seq + 1
       dispatch({ type: "event", event })
       if (handlersRef.current && handlersRef.current.onEvent) handlersRef.current.onEvent(event)
-      if (event.type === "done") load(true)
+      if (event.type === "done") {
+        listeningRun.current = null
+        load(true)
+      }
     }, (finished) => {
       if (!finished) {
         setTimeout(async () => {
@@ -187,8 +191,40 @@ export function useChat(chatId, handlers) {
     })
   }, [load])
 
+  // A chat left in a background tab lets go of its live connection after a while, so the tab in
+  // front always has one free (browsers allow only a few per site). It catches up on return.
+  const pausedRun = useRef(null)
+  const listeningRun = useRef(null)
+  useEffect(() => {
+    let timer = null
+    function changed() {
+      clearTimeout(timer)
+      if (document.hidden) {
+        timer = setTimeout(() => {
+          if (document.hidden && closeRef.current && listeningRun.current) {
+            closeRef.current()
+            closeRef.current = null
+            pausedRun.current = listeningRun.current
+          }
+        }, 20000)
+      } else if (pausedRun.current) {
+        const runId = pausedRun.current
+        pausedRun.current = null
+        load(true).then((data) => {
+          if (data && data.run && data.run.active && data.run.id === runId) listen(runId, seqRef.current)
+        })
+      }
+    }
+    document.addEventListener("visibilitychange", changed)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("visibilitychange", changed)
+    }
+  }, [load, listen])
+
   useEffect(() => {
     let alive = true
+    pausedRun.current = null
     dispatch({ type: "reset" })
     load(false).then((data) => {
       if (alive && data && data.run && data.run.active) listen(data.run.id, 0)

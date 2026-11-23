@@ -5,6 +5,7 @@ import { DraftCall, liveLabel, partialField } from "./ToolCall"
 import Flow, { buildFlow } from "./Flow"
 import { rawUrl } from "../../lib/api"
 import { useSmoothText } from "../../lib/smooth"
+import ForkMark from "./ForkMark"
 
 function Reasoning({ text, live }) {
   const [open, setOpen] = useState(false)
@@ -143,7 +144,7 @@ function ProcessLine({ state, drafts, results }) {
     const timer = setInterval(() => setSeconds(Math.floor((Date.now() - began) / 1000)), 1000)
     return () => clearInterval(timer)
   }, [live.runId])
-  let label = { icon: Sparkles, text: live.text ? "Writing the answer" : live.reasoning ? "Thinking" : "Working" }
+  let label = { icon: Sparkles, text: live.text ? "Writing the answer" : live.reasoning ? "Thinking" : "Forkwise is working" }
   if (live.compacting) label = { icon: Brain, text: "Summarizing earlier messages" }
   const calls = []
   for (const message of state.messages) if (message.role === "assistant") for (const call of message.tool_calls || []) calls.push(call)
@@ -159,7 +160,7 @@ function ProcessLine({ state, drafts, results }) {
   const Icon = steady.icon || Sparkles
   return (
     <div className="fw-process" role="status" aria-live="polite">
-      <span className="fw-process-icon" key={"i" + steady.text}><Icon size={14} /></span>
+      <span className="fw-process-icon" key={"i" + steady.text}>{Icon === Sparkles ? <ForkMark size={16} active /> : <Icon size={14} />}</span>
       <span className="fw-process-text" dir="auto" key={steady.text}>{steady.text}</span>
       <span className="fw-process-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
     </div>
@@ -198,6 +199,7 @@ export default function MessageList({ state, wid, respond, onPreview, onRewind, 
               {lastTurn && live.running && Object.keys(live.waiting).length === 0 && <ProcessLine state={state} drafts={drafts} results={results} />}
               {lastTurn && !live.running && lastText(turn.items) && (
                 <div className="fw-msg-actions fw-left">
+                  {lastTurn && <span className="fw-done-mark" title="Forkwise"><ForkMark size={18} /></span>}
                   <CopyButton text={lastText(turn.items)} />
                   <RateButtons />
                 </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { FileDiff, Square } from "lucide-react"
+import ForkMark from "./ForkMark"
 
 function parse(raw) {
   if (!raw) return {}
@@ -50,7 +51,7 @@ export default function RunBar({ state, onStop, onOpenChanges }) {
 
   const calls = lastTurnCalls(state.messages)
   const waiting = Object.keys(live.waiting)
-  let label = live.compacting ? "Summarizing earlier messages" : "Working"
+  let label = live.compacting ? "Summarizing earlier messages" : "Forkwise"
   if (waiting.length > 0) label = live.waiting[waiting[0]].kind === "approval" ? "Waiting for your approval" : "Waiting for your answer"
 
   const percent = live.context && live.context.limit ? Math.min(100, Math.round((live.context.tokens / live.context.limit) * 100)) : null
@@ -58,8 +59,14 @@ export default function RunBar({ state, onStop, onOpenChanges }) {
 
   return (
     <div className={"fw-run-bar" + (waiting.length > 0 ? " fw-waiting" : "")} role="status">
-      <span className="fw-run-state"><span className={"fw-run-led" + (waiting.length > 0 ? " fw-waiting" : "")} /></span>
-      <span className="fw-run-label" dir="auto">{label}</span>
+      {waiting.length > 0 ? (
+        <>
+          <span className="fw-run-state"><span className="fw-run-led fw-waiting" /></span>
+          <span className="fw-run-label" dir="auto">{label}</span>
+        </>
+      ) : (
+        <span className="fw-run-mark"><ForkMark size={17} active /><span className="fw-run-label" dir="auto">{label}</span></span>
+      )}
       <span className="fw-run-meta">{calls.length} {calls.length === 1 ? "step" : "steps"}</span>
       <span className="fw-run-meta fw-mono">{clock(seconds)}</span>
       {changed > 0 && <button type="button" className="fw-run-meta fw-run-link" onClick={onOpenChanges}><FileDiff size={12} />{changed} {changed === 1 ? "file" : "files"}</button>}

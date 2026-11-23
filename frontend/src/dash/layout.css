@@ -652,3 +652,29 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-voice-btn.on { background: var(--tx); color: var(--bg-1); }
 .fw .fw-voice-btn.end { background: #e5484d; color: #fff; }
 .fw .fw-voice-btn.end:hover { background: #d13d42; }
+
+/* Forkwise mark: rests as the logo shape, folds and fans out while the agent works */
+.fw .fw-fork { flex: none; display: block; overflow: visible; color: var(--tx); }
+.fw .fw-fork path { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+.fw .fw-fork .fk-branch path { opacity: 0.55; }
+.fw .fw-fork circle { fill: currentColor; }
+.fw .fw-fork .fk-tip { opacity: 0.75; }
+.fw .fw-fork .fk-head { fill: var(--ok, #4ade80); opacity: 1; }
+.fw .fw-fork .fk-branch, .fw .fw-fork .fk-tip { transform-box: view-box; transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease; }
+.fw .fw-fork .fk-branch { transform-origin: 5px 12px; }
+.fw .fw-fork .fk-tip-a { transform-origin: 18.6px 5.5px; }
+.fw .fw-fork .fk-tip-b { transform-origin: 18.6px 12px; }
+.fw .fw-fork .fk-tip-c { transform-origin: 18.6px 18.5px; }
+.fw .fw-fork.is-active .fk-top { animation: fk-fold 1.8s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+.fw .fw-fork.is-active .fk-bottom { animation: fk-fold 1.8s cubic-bezier(0.45, 0, 0.25, 1) 0.18s infinite; }
+.fw .fw-fork.is-active .fk-tip-a { animation: fk-pulse 1.8s ease-in-out 0s infinite; }
+.fw .fw-fork.is-active .fk-tip-b { animation: fk-pulse 1.8s ease-in-out 0.3s infinite; }
+.fw .fw-fork.is-active .fk-tip-c { animation: fk-pulse 1.8s ease-in-out 0.6s infinite; }
+.fw .fw-fork.is-active .fk-root { animation: fk-root 1.8s ease-in-out infinite; transform-box: view-box; transform-origin: 5px 12px; }
+@keyframes fk-fold { 0%, 100% { transform: scaleY(1); } 45%, 55% { transform: scaleY(0.14); } }
+@keyframes fk-pulse { 0%, 100% { transform: scale(1); opacity: 0.75; } 40% { transform: scale(1.45); opacity: 1; } }
+@keyframes fk-root { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.82); } }
+@media (prefers-reduced-motion: reduce) { .fw .fw-fork * { animation: none !important; } }
+.fw .fw-run-mark { display: inline-flex; align-items: center; gap: 8px; }
+.fw .fw-run-mark .fw-run-label { background: linear-gradient(90deg, var(--tx) 0%, var(--tx) 40%, var(--tx-3) 50%, var(--tx) 60%, var(--tx) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: fw-shimmer 2.6s linear infinite; }
+.fw .fw-done-mark { display: inline-flex; align-items: center; margin-right: 4px; animation: fw-soft-in 0.5s ease both; }
