@@ -7,6 +7,7 @@ import {
 import { useStore } from "../../lib/store"
 import { api, apiUrl } from "../../lib/api"
 import { desktopApp } from "../../lib/desktop"
+import { Speaker, voiceInfo } from "../../lib/voice"
 import Avatar from "../../dash/Avatar"
 import { Badge, Button, CodeInput, Dialog, Field, Group, Input, Kbd, Row, Segmented, Select, Skeleton, Steps, Switch, Textarea, useConfirm, useCooldown } from "../../dash/kit"
 import Connections from "./settings/Connections"
@@ -166,6 +167,26 @@ function Preferences() {
     try { localStorage.setItem("fw-voice", value) } catch (e) { /* storage blocked */ }
   }
 
+  const [speech, setSpeech] = useState(null)
+  const [speaker, setSpeaker] = useState(() => {
+    try { return localStorage.getItem("fw-voice-name") || "" } catch (e) { return "" }
+  })
+  useEffect(() => {
+    let alive = true
+    voiceInfo().then((info) => { if (alive) setSpeech(info) })
+    return () => { alive = false }
+  }, [])
+
+  function pickSpeaker(value) {
+    setSpeaker(value)
+    try { localStorage.setItem("fw-voice-name", value) } catch (e) { /* storage blocked */ }
+  }
+
+  function preview() {
+    const sample = new Speaker({ server: Boolean(speech && speech.speak), voice: speaker || (speech && speech.voice) || "", language: voice })
+    sample.say(voice.startsWith("fa") ? "سلام! من فورک‌وایز هستم. هر وقت آماده بودی، با من حرف بزن." : "Hi, I'm Forkwise. Talk to me whenever you're ready.")
+  }
+
   return (
     <>
       <Group label="Appearance">
@@ -173,9 +194,17 @@ function Preferences() {
           <Segmented value={theme} onChange={setTheme} options={[{ value: "dark", label: "Dark", icon: Moon }, { value: "light", label: "Light", icon: Sun }]} />
         </Row>
       </Group>
-      <Group label="Voice input">
-        <Row title="Dictation language" description="The language you speak when you press the microphone in the message box.">
+      <Group label="Voice">
+        <Row title="Language you speak" description="Used for dictation and for voice conversations.">
           <Select value={voice} onChange={pickVoice} options={voiceOptions} width={230} searchable />
+        </Row>
+        {speech && speech.speak && speech.voices.length > 0 && (
+          <Row title="Forkwise's voice" description="The voice that reads replies in a voice conversation.">
+            <Select value={speaker || speech.voice} onChange={pickSpeaker} options={speech.voices.map((name) => ({ value: name, label: name.charAt(0).toUpperCase() + name.slice(1) }))} width={160} />
+          </Row>
+        )}
+        <Row title="Try it" description={speech && speech.speak ? "Hear the voice you picked." : "Replies are read with your browser's voices. Your server admin can turn on natural voices."}>
+          <Button onClick={preview}>Play a sample</Button>
         </Row>
       </Group>
       <Group label="Email notifications" description="Sign-in codes, receipts and security alerts always arrive. They keep your account safe.">

@@ -40,6 +40,7 @@ class NewMessage(BaseModel):
     mode: str = ""
     effort: str = ""
     skills: list = []
+    voice: bool = False
 
 
 class Rewind(BaseModel):
@@ -336,6 +337,8 @@ async def send_message(chat_id: str, body: NewMessage, request: Request):
     if len(attachments) > 0:
         meta["attachments"] = attachments
     effort = body.effort if body.effort in EFFORTS else ""
+    if body.voice:
+        meta["voice"] = True
     skill_names = []
     for item in body.skills[:5]:
         name = str(item)[:80]

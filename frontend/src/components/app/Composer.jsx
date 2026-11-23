@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowUp, AtSign, Blocks, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, FileCode2, FileText, Github, Hand, Image as ImageIcon, ListChecks, Loader2, Mail, Mic, Monitor, Paperclip, Plug, Plus, Search, Settings2, Sparkles, Square, X, Zap } from "lucide-react"
+import { canRecord, recordOnce, transcribe, voiceInfo, voiceLanguage } from "../../lib/voice"
+import { ArrowUp, AtSign, AudioLines, Blocks, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, FileCode2, FileText, Github, Hand, Image as ImageIcon, ListChecks, Loader2, Mail, Mic, Monitor, Paperclip, Plug, Plus, Search, Settings2, Sparkles, Square, X, Zap } from "lucide-react"
 import { api, upload, rawUrl } from "../../lib/api"
 import { groupModels, readRecent, rememberModel, vendorInfo, vendorOf } from "../../lib/vendors"
 import { MenuItem, MenuLabel, MenuSep, Popover, cx } from "../../dash/kit"
@@ -85,9 +86,6 @@ function speechApi() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null
 }
 
-export function voiceLanguage() {
-  return readStored("fw-voice", navigator.language || "en-US")
-}
 
 function sizeText(bytes) {
   if (!bytes && bytes !== 0) return ""
@@ -285,7 +283,7 @@ function ModelPanel({ models, current, onPick, effort, chooseEffort }) {
   )
 }
 
-export default function Composer({ onSend, onStop, running, mode, onMode, model, onModel, models, getWorkspace, context, initialText, onCommand, placeholder, big }) {
+export default function Composer({ onSend, onStop, running, mode, onMode, model, onModel, models, getWorkspace, context, initialText, onCommand, placeholder, big, onVoiceMode }) {
   const [text, setText] = useState("")
   const [items, setItems] = useState([])
   const [wid, setWid] = useState(null)
@@ -306,6 +304,9 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
   const plusRef = useRef(null)
   const modelRef = useRef(null)
   const recognizer = useRef(null)
+  const recording = useRef(null)
+  const [serverVoice, setServerVoice] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
   const voiceBase = useRef("")
   const dragDepth = useRef(0)
   const widRef = useRef(null)
@@ -523,7 +524,47 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
     addFiles(event.dataTransfer.files)
   }
 
+  useEffect(() => {
+    let alive = true
+    voiceInfo().then((info) => {
+      if (alive) setServerVoice(Boolean(info.transcribe) && canRecord())
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  function startServerVoice() {
+    setError("")
+    setListening(true)
+    recording.current = recordOnce({
+      onError: (message) => {
+        setError(message)
+        setListening(false)
+      },
+      onDone: async (blob) => {
+        recording.current = null
+        setListening(false)
+        if (!blob) return
+        setTranscribing(true)
+        try {
+          const heard = await transcribe(blob, voiceLanguage())
+          if (heard) setText((value) => (value && !value.endsWith(" ") ? value + " " : value) + heard)
+        } catch (problem) {
+          setError(problem.message)
+        } finally {
+          setTranscribing(false)
+          if (area.current) area.current.focus()
+        }
+      },
+    })
+  }
+
   function startVoice() {
+    if (serverVoice) {
+      startServerVoice()
+      return
+    }
     const Speech = speechApi()
     if (!Speech) {
       setError("Voice input needs Chrome, Edge or Safari.")
@@ -566,13 +607,14 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
   }
 
   function stopVoice() {
+    if (recording.current) recording.current.stop()
     if (recognizer.current) recognizer.current.stop()
   }
 
   const current = MODES.find((item) => item.key === mode) || MODES[0]
   const ModeIcon = current.icon
   const currentModel = models.find((item) => item.key === model) || models[0]
-  const canVoice = Boolean(speechApi())
+  const canVoice = serverVoice || Boolean(speechApi())
 
   return (
     <div className={cx("fw-composer", big && "is-big", "mode-" + mode, dragging && "is-dragging")}
@@ -615,7 +657,7 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
         rows={1}
         value={text}
         aria-label="Message"
-        placeholder={listening ? "Listening…" : placeholder || (running ? "Add a follow-up. Forkwise reads it at the next step." : "Plan, build, or ask anything. / for commands and skills")}
+        placeholder={transcribing ? "Turning your voice into text…" : listening ? "Listening…" : placeholder || (running ? "Add a follow-up. Forkwise reads it at the next step." : "Plan, build, or ask anything. / for commands and skills")}
         onChange={(e) => { setText(e.target.value); setCommandIndex(0); if (listening) voiceBase.current = e.target.value }}
         onKeyDown={onKey}
         onPaste={onPaste}
@@ -656,7 +698,9 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
             {listening ? <span className="fw-wave"><i /><i /><i /><i /></span> : <Mic size={16} />}
           </button>
         )}
-        {running && !canSend ? (
+        {onVoiceMode && !running && !canSend ? (
+          <button type="button" className="fw-send is-voice" onClick={onVoiceMode} title="Talk with Forkwise" aria-label="Start a voice conversation"><AudioLines size={16} /></button>
+        ) : running && !canSend ? (
           <button type="button" className="fw-send is-stop" onClick={onStop} title="Stop" aria-label="Stop"><Square size={12} fill="currentColor" /></button>
         ) : (
           <button type="button" className="fw-send" disabled={!canSend} onClick={submit} title={uploading ? "Waiting for uploads" : "Send"} aria-label="Send">

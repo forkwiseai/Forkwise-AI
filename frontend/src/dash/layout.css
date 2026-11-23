@@ -619,3 +619,29 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-step-thought:not(:disabled) { cursor: pointer; }
 .fw .fw-step-thought:not(:disabled):hover { color: var(--tx-2); }
 .fw .fw-step-thought span { display: block; }
+
+/* Voice conversation: replaces the message box while you talk with the agent. */
+.fw .fw-send.is-voice { background: var(--primary); color: var(--on-primary); }
+.fw .fw-voice { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 84px; padding: 14px 14px 14px 16px; border: 1px solid var(--line-2); border-radius: 18px; background: var(--bg-2); }
+.fw .fw-voice-orb { --level: 0; position: relative; width: 52px; height: 52px; display: grid; place-items: center; }
+.fw .fw-voice-orb span { position: absolute; inset: 0; border-radius: 50%; background: var(--accent); }
+.fw .fw-voice-orb span:nth-child(1) { opacity: 0.16; transform: scale(calc(0.78 + var(--level) * 0.55)); }
+.fw .fw-voice-orb span:nth-child(2) { opacity: 0.28; transform: scale(calc(0.64 + var(--level) * 0.35)); }
+.fw .fw-voice-orb span:nth-child(3) { inset: 14px; opacity: 1; }
+.fw .fw-voice.is-thinking .fw-voice-orb span:nth-child(-n+2), .fw .fw-voice.is-working .fw-voice-orb span:nth-child(-n+2) { animation: fw-voice-breathe 1.6s ease-in-out infinite !important; }
+.fw .fw-voice.is-speaking .fw-voice-orb span:nth-child(-n+2) { animation: fw-voice-talk 0.9s ease-in-out infinite !important; }
+.fw .fw-voice.is-speaking .fw-voice-orb span:nth-child(2) { animation-delay: 0.2s !important; }
+.fw .fw-voice.is-muted .fw-voice-orb span { background: var(--tx-4); }
+@keyframes fw-voice-breathe { 0%, 100% { transform: scale(0.8); opacity: 0.18; } 50% { transform: scale(1); opacity: 0.32; } }
+@keyframes fw-voice-talk { 0%, 100% { transform: scale(0.82); } 50% { transform: scale(1.08); } }
+.fw .fw-voice-body { min-width: 0; display: grid; gap: 3px; }
+.fw .fw-voice-status { font-size: 12.5px; font-weight: 500; color: var(--tx-3); }
+.fw .fw-voice.is-hearing .fw-voice-status, .fw .fw-voice.is-speaking .fw-voice-status { color: var(--accent); }
+.fw .fw-voice-caption { font-size: 15px; line-height: 1.45; color: var(--tx); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; unicode-bidi: plaintext; }
+.fw .fw-voice-heard { color: var(--tx-2); }
+.fw .fw-voice-actions { display: flex; gap: 8px; }
+.fw .fw-voice-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-4); color: var(--tx); }
+.fw .fw-voice-btn:hover { background: var(--bg-5, var(--bg-4)); }
+.fw .fw-voice-btn.on { background: var(--tx); color: var(--bg-1); }
+.fw .fw-voice-btn.end { background: #e5484d; color: #fff; }
+.fw .fw-voice-btn.end:hover { background: #d13d42; }

@@ -203,10 +203,10 @@ export function useChat(chatId, handlers) {
     const options = extra || {}
     const running = state.live.running
     if (!running) {
-      dispatch({ type: "optimistic", message: { id: tempId, temp: true, role: "user", content, meta: options.attachments && options.attachments.length ? { attachments: options.attachments } : {} } })
+      dispatch({ type: "optimistic", message: { id: tempId, temp: true, role: "user", content, meta: { ...(options.attachments && options.attachments.length ? { attachments: options.attachments } : {}), ...(options.voice ? { voice: true } : {}) } } })
     }
     try {
-      const data = await api.post("/api/chats/" + chatId + "/messages", { content, attachments: options.attachments || [], model: options.model || "", mode: options.mode || "", effort: options.effort || "", skills: options.skills || [] })
+      const data = await api.post("/api/chats/" + chatId + "/messages", { content, attachments: options.attachments || [], model: options.model || "", mode: options.mode || "", effort: options.effort || "", skills: options.skills || [], voice: Boolean(options.voice) })
       if (data.queued) {
         dispatch({ type: "queued", text: content })
         return

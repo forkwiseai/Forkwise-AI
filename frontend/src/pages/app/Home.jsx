@@ -172,6 +172,15 @@ export default function Home({ kind }) {
     }
   }
 
+  async function startVoice() {
+    try {
+      const chat = await ensureChat()
+      navigate("/app/c/" + chat.id, { state: { voice: true } })
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+  }
+
   function pickProject(id) {
     const next = new URLSearchParams(params)
     if (id) next.set("project", id)
@@ -224,6 +233,7 @@ export default function Home({ kind }) {
           big
           placeholder={copy.placeholder}
           onSend={send}
+          onVoiceMode={startVoice}
           running={false}
           mode={mode}
           onMode={setMode}

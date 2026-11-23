@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ArrowDown, ChevronDown, Download, FolderKanban, FolderOpen, ListChecks, MessageSquare, PanelRight, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
 import Composer from "../../components/app/Composer"
+import VoiceMode from "../../components/app/VoiceMode"
 import MessageList from "../../components/app/MessageList"
 import RunBar from "../../components/app/RunBar"
 import Workspace from "../../components/app/workspace/Workspace"
@@ -40,6 +41,7 @@ export default function Chat() {
   const [width, setWidth] = useState(readWidth)
   const [seed, setSeed] = useState(null)
   const [atBottom, setAtBottom] = useState(true)
+  const [voice, setVoice] = useState(false)
   const scroller = useRef(null)
   const sentFirst = useRef(false)
   const toolNames = useRef({})
@@ -78,6 +80,11 @@ export default function Chat() {
   }, [chatId])
 
   useEffect(() => {
+    if (location.state && location.state.voice && !state.loading && state.chat) {
+      setVoice(true)
+      navigate(location.pathname + location.search, { replace: true, state: null })
+      return
+    }
     const first = location.state && location.state.first
     if (!first || sentFirst.current || state.loading || !state.chat) return
     sentFirst.current = true
@@ -246,7 +253,11 @@ export default function Chat() {
             <button type="button" className="fw-tobottom" onClick={() => { scroller.current.scrollTop = scroller.current.scrollHeight }} aria-label="Scroll to the latest message"><ArrowDown size={15} /></button>
           )}
           <RunBar state={state} onStop={stop} onOpenChanges={() => { setPanel(true); setTab("changes") }} />
+          {voice ? (
+            <VoiceMode live={state.live} onSend={(text, extra) => send(text, extra)} onClose={() => setVoice(false)} />
+          ) : (
           <Composer
+            onVoiceMode={() => setVoice(true)}
             onSend={(text, files, extra) => send(text, { attachments: files, effort: extra && extra.effort, skills: extra && extra.skills })}
             onStop={stop}
             running={state.live.running}
@@ -260,6 +271,7 @@ export default function Chat() {
             initialText={seed}
             onCommand={command}
           />
+          )}
         </div>
       </section>
       {panel && (

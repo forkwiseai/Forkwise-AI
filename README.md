@@ -95,7 +95,7 @@ GitHub, Google, any MCP server, plus a directory of featured connectors and read
 </tr>
 </table>
 
-**And also:** checkpoints on every message (go back and your files come back too) · Agent, Plan and Ask-first modes · memory across chats · projects with their own instructions · scheduled tasks · encrypted secrets · image and video generation · Forkwise for Chrome · desktop and Android apps · a public API with live event streams.
+**And also:** voice conversations (talk, and it answers out loud) · checkpoints on every message (go back and your files come back too) · Agent, Plan and Ask-first modes · memory across chats · projects with their own instructions · scheduled tasks · encrypted secrets · image and video generation · Forkwise for Chrome · desktop and Android apps · a public API with live event streams.
 
 <br>
 

@@ -109,6 +109,15 @@ class Run:
         return await run_subagent(self, args, call_id)
 
 
+VOICE_NOTE = (
+    "\n\n[The user said this out loud in a voice conversation, and your reply will be read aloud to them. "
+    "Answer the way a thoughtful person talks: usually one to three short sentences, warm and natural, "
+    "in the same language they spoke. No markdown, lists, headings, code blocks, links, emoji or symbols that "
+    "sound odd when read aloud. If the request needs real work such as code, files or research, say in a few "
+    "words what you will do, do it with your tools, then sum up the result in a sentence or two and offer the next step.]"
+)
+
+
 def user_content(row, vision):
     meta = db.load_json(row["meta"], {})
     text = row["content"]
@@ -118,6 +127,8 @@ def user_content(row, vision):
         for item in files:
             names.append(item.get("path", ""))
         text = text + "\n\n[Attached files, saved in the project: " + ", ".join(names) + "]"
+    if meta.get("voice"):
+        text = text + VOICE_NOTE
     images = []
     if vision:
         for item in files:

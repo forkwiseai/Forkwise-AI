@@ -1,6 +1,6 @@
 export const DOC_GROUPS = [
   { title: "Start here", slugs: ["getting-started", "how-forkwise-decides", "finishing-projects", "choosing-a-model", "own-api-keys"] },
-  { title: "Working with Forkwise", slugs: ["the-computer", "modes-and-checkpoints", "projects", "files-and-uploads"] },
+  { title: "Working with Forkwise", slugs: ["the-computer", "modes-and-checkpoints", "projects", "files-and-uploads", "voice"] },
   { title: "Make it yours", slugs: ["skills", "memory", "abilities", "connectors", "project-settings"] },
   { title: "Your computer and browser", slugs: ["desktop-app", "chrome-extension"] },
   { title: "Accounts", slugs: ["github-and-gmail", "schedules-and-secrets"] },
@@ -632,6 +632,63 @@ Set \`ALLOW_PRIVATE_PROVIDERS=1\` and each user can connect Ollama or LM Studio 
 ## Optional settings
 
 Everything is in \`backend/.env.example\` with comments: email (SMTP), Google and GitHub sign in, web search (Brave or SearXNG), MySQL instead of SQLite, payments and per-plan daily limits. Set \`SECRET_KEY\` to a long random string on a server so stored secrets stay readable if the data folder moves.`,
+  },
+
+  "voice": {
+    title: "Talk with Forkwise",
+    summary: "Dictate messages, or have a spoken conversation where Forkwise answers out loud.",
+    body: `## Dictation
+
+Press the microphone in the message box and speak. Forkwise stops listening when you pause and puts what you said in the box, so you can check it before sending. Pick the language you speak in **Settings, Preferences, Voice**.
+
+## Voice conversation
+
+When the message box is empty, the round button on the right starts a voice conversation. Just talk:
+
+- Forkwise listens, and when you stop speaking it sends what you said.
+- It answers out loud, sentence by sentence, while the reply is still being written, so there is no long wait.
+- Replies in a voice conversation are short and natural, like talking to a colleague. When a task needs real work, it says what it is doing, does it, and tells you the result.
+- Interrupt at any time by speaking: it stops talking and listens.
+- The mute button pauses the microphone. **Esc** or the red button ends the conversation, and everything you said stays in the chat as text.
+
+Choose Forkwise's voice and hear a sample in **Settings, Preferences, Voice**.
+
+## Voice in the API
+
+The same speech features are available with an API key:
+
+\`\`\`bash
+# speech to text: send a recording, get the words back
+curl https://api.forkwiseai.com/api/voice/transcribe \\
+  -H "Authorization: Bearer $FORKWISE_KEY" \\
+  -F audio=@question.webm -F language=en
+
+# text to speech: get natural speech as MP3
+curl https://api.forkwiseai.com/api/voice/speak \\
+  -H "Authorization: Bearer $FORKWISE_KEY" -H "Content-Type: application/json" \\
+  -d '{"text": "The build passed.", "voice": "coral"}' -o reply.mp3
+
+# a spoken turn: send the words with "voice": true and the reply is written to be read aloud
+curl https://api.forkwiseai.com/api/chats/CHAT_ID/messages \\
+  -H "Authorization: Bearer $FORKWISE_KEY" -H "Content-Type: application/json" \\
+  -d '{"content": "What is left on the plan?", "voice": true}'
+\`\`\`
+
+\`GET /api/voice\` tells you what the server supports and which voices it has. Recordings can be up to 25 MB; text to speak up to 4,000 characters.
+
+## Self-hosting
+
+Speech uses any OpenAI-compatible audio API. Set these in the server settings:
+
+| Setting | Example |
+| --- | --- |
+| \`STT_BASE_URL\` | \`https://api.groq.com/openai/v1\` (Whisper large v3 turbo) or \`https://api.openai.com/v1\` |
+| \`STT_API_KEY\` | the key for that service |
+| \`TTS_BASE_URL\` | \`https://api.openai.com/v1\` |
+| \`TTS_API_KEY\` | the key for that service |
+| \`TTS_MODEL\` / \`TTS_VOICE\` | \`gpt-4o-mini-tts\` / \`coral\` |
+
+Without them, dictation uses the browser's own speech recognition (Chrome, Edge and Safari) and replies are read with the browser's voices.`,
   },
 
 }
