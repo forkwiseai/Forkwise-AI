@@ -849,7 +849,7 @@ async def run_main(run, first_text):
                     repairs = repairs + 1
                     save_message(run.chat["id"], "note", leaks.repair_note(tool_names(run.tool_specs), unknown), hidden=1)
                     continue
-                if not content.strip() and answer["finish"] != "length" and empties < 2:
+                if not content.strip() and answer["finish"] not in ["length", "interrupted"] and empties < 2:
                     empties = empties + 1
                     save_message(run.chat["id"], "note", "Your last turn ended with no answer and no tool call. Continue the task: call the next tool, or write your final answer to the user.", hidden=1)
                     continue
@@ -879,9 +879,10 @@ async def run_main(run, first_text):
                     note = "Your task list still has unfinished items. Continue working until every item is completed and verified, then update the list. If an item is truly impossible, mark the list honestly and explain why."
                     save_message(run.chat["id"], "note", note, hidden=1)
                     continue
-                if answer["finish"] == "length" and nudges < 3:
+                if answer["finish"] in ["length", "interrupted"] and nudges < 3:
                     nudges = nudges + 1
-                    save_message(run.chat["id"], "note", "Your answer was cut off because it was too long. Continue exactly where you stopped. Write big files in smaller parts.", hidden=1)
+                    why = "it was too long" if answer["finish"] == "length" else "the connection to the AI provider broke"
+                    save_message(run.chat["id"], "note", "Your answer was cut off because " + why + ". Continue exactly where you stopped, without repeating anything. Write big files in smaller parts.", hidden=1)
                     continue
                 break
             end_turn = False

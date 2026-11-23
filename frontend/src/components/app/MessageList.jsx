@@ -4,6 +4,7 @@ import Markdown from "./Markdown"
 import { DraftCall, liveLabel, partialField } from "./ToolCall"
 import Flow, { buildFlow } from "./Flow"
 import { rawUrl } from "../../lib/api"
+import { useSmoothText } from "../../lib/smooth"
 
 function Reasoning({ text, live }) {
   const [open, setOpen] = useState(false)
@@ -105,6 +106,11 @@ function parseArgs(raw) {
   }
 }
 
+function LiveText({ text }) {
+  const shown = useSmoothText(text)
+  return <Markdown text={shown} />
+}
+
 function ProcessLine({ state, drafts, results }) {
   const live = state.live
   const [seconds, setSeconds] = useState(0)
@@ -161,7 +167,7 @@ export default function MessageList({ state, wid, respond, onPreview, onRewind, 
               {lastTurn && live.running && (
                 <div className="fw-assistant-step fw-live">
                   <Reasoning text={live.reasoning} live />
-                  {live.text && <Markdown text={live.text} />}
+                  {live.text && <LiveText text={live.text} />}
                   {drafts.map((draft, i) => <DraftCall key={i} draft={draft} />)}
                 </div>
               )}

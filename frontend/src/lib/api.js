@@ -54,7 +54,21 @@ export const api = {
 export function openEvents(runId, after, onEvent, onClose) {
   const source = new EventSource(API + "/api/runs/" + runId + "/events?after=" + after, { withCredentials: true })
   let closed = false
+  let lastSeen = Date.now()
+  // The server sends a ping every 15 seconds. A silent connection (a proxy or a sleeping laptop
+  // can freeze it without an error) is closed and reopened, so the chat never needs a refresh.
+  const watchdog = setInterval(() => {
+    if (closed || Date.now() - lastSeen < 40000) return
+    closed = true
+    clearInterval(watchdog)
+    source.close()
+    onClose && onClose(false)
+  }, 5000)
+  source.addEventListener("ping", () => {
+    lastSeen = Date.now()
+  })
   source.onmessage = (message) => {
+    lastSeen = Date.now()
     let event = null
     try {
       event = JSON.parse(message.data)
@@ -64,17 +78,21 @@ export function openEvents(runId, after, onEvent, onClose) {
     onEvent(event)
     if (event.type === "done") {
       closed = true
+      clearInterval(watchdog)
       source.close()
       onClose && onClose(true)
     }
   }
   source.onerror = () => {
     if (closed) return
+    closed = true
+    clearInterval(watchdog)
     source.close()
     onClose && onClose(false)
   }
   return () => {
     closed = true
+    clearInterval(watchdog)
     source.close()
   }
 }

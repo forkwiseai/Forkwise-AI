@@ -27,12 +27,18 @@ export default function VoiceMode({ live, onSend, onClose }) {
   const listener = useRef(null)
   const speaker = useRef(null)
   const splitter = useRef(null)
+  // Browser speech recognition, used when the server has no speech to text. It cannot tell the
+  // user's voice from the reply playing on the speakers, so it only listens while nothing is playing.
   const recognizer = useRef(null)
+  const recognition = useRef(null)
+  const mutedRef = useRef(false)
   const armed = useRef(false)
   const spokenText = useRef("")
   const running = useRef(live.running)
   const liveText = useRef(live.text || "")
   liveText.current = live.text || ""
+  const sendRef = useRef(onSend)
+  sendRef.current = onSend
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   running.current = live.running
@@ -41,11 +47,25 @@ export default function VoiceMode({ live, onSend, onClose }) {
     if (speaker.current && speaker.current.busy) return
     if (running.current && armed.current) {
       setPhase("working")
+      if (recognizer.current && !mutedRef.current) listenBrowser()
       return
     }
-    setPhase(listener.current && listener.current.paused ? "muted" : "listening")
+    const isMuted = listener.current ? listener.current.paused : mutedRef.current
+    setPhase(isMuted ? "muted" : "listening")
     if (listener.current) listener.current.setStrict(false)
-    if (recognizer.current === "idle") listenBrowser()
+    if (recognizer.current && !isMuted) listenBrowser()
+  }
+
+  function stopBrowser() {
+    const active = recognition.current
+    recognition.current = null
+    if (active) {
+      try {
+        active.abort()
+      } catch (problem) {
+        recognition.current = null
+      }
+    }
   }
 
   async function heardText(text) {
@@ -56,13 +76,14 @@ export default function VoiceMode({ live, onSend, onClose }) {
     }
     setHeard(clean)
     setSaying("")
+    stopBrowser()
     if (speaker.current) speaker.current.stop()
     if (splitter.current) splitter.current = new SentenceSplitter(sayOne)
     spokenText.current = liveText.current
     armed.current = true
     setPhase("thinking")
     try {
-      await onSend(clean, { voice: true })
+      await sendRef.current(clean, { voice: true })
     } catch (problem) {
       setError(problem.message || "The message could not be sent.")
       settle()
@@ -76,40 +97,48 @@ export default function VoiceMode({ live, onSend, onClose }) {
 
   function listenBrowser() {
     const Speech = browserRecognizer()
-    if (!Speech) return
-    const recognition = new Speech()
-    recognition.lang = voiceLanguage()
-    recognition.interimResults = true
-    recognition.continuous = false
-    recognition.onresult = (event) => {
+    if (!Speech || recognition.current || mutedRef.current) return
+    if (speaker.current && speaker.current.busy) return
+    const instance = new Speech()
+    instance.lang = voiceLanguage()
+    instance.interimResults = true
+    instance.continuous = false
+    let finalText = ""
+    instance.onresult = (event) => {
       let text = ""
       let final = false
       for (let index = 0; index < event.results.length; index += 1) {
         text += event.results[index][0].transcript
         if (event.results[index].isFinal) final = true
       }
-      if (speaker.current && speaker.current.busy) speaker.current.stop()
       setHeard(text)
       setPhase("hearing")
-      if (final) {
-        recognizer.current = "busy"
-        heardText(text)
-      }
+      if (final) finalText = text
     }
-    recognition.onend = () => {
-      if (recognizer.current === "listening") {
-        recognizer.current = "idle"
-        if (phaseRef.current === "listening" || phaseRef.current === "hearing") setTimeout(listenBrowser, 150)
+    instance.onend = () => {
+      if (recognition.current !== instance) return
+      recognition.current = null
+      if (finalText.trim()) {
+        heardText(finalText)
+        return
       }
+      // Silence or a timeout: listen again unless the conversation moved on.
+      if (phaseRef.current === "listening" || phaseRef.current === "hearing") setTimeout(listenBrowser, 200)
     }
-    recognition.onerror = (event) => {
-      if (event.error === "not-allowed") setError("Microphone access is blocked. Allow it in the browser's site settings.")
+    instance.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        setError("Microphone access is blocked. Allow it in the browser's site settings.")
+        recognizer.current = null
+      } else if (event.error === "network") {
+        setError("Your browser's speech service cannot be reached. Ask your admin to turn on speech to text on the server.")
+        recognizer.current = null
+      }
     }
     try {
-      recognition.start()
-      recognizer.current = "listening"
+      recognition.current = instance
+      instance.start()
     } catch (problem) {
-      recognizer.current = "idle"
+      recognition.current = null
     }
   }
 
@@ -123,6 +152,7 @@ export default function VoiceMode({ live, onSend, onClose }) {
         language: voiceLanguage(),
         onStart: () => {
           setPhase("speaking")
+          stopBrowser()
           if (listener.current) listener.current.setStrict(true)
         },
         onIdle: () => settle(),
@@ -156,7 +186,7 @@ export default function VoiceMode({ live, onSend, onClose }) {
         }
         if (ok) setPhase("listening")
       } else if (browserRecognizer()) {
-        recognizer.current = "idle"
+        recognizer.current = "browser"
         setPhase("listening")
         listenBrowser()
       } else {
@@ -173,6 +203,7 @@ export default function VoiceMode({ live, onSend, onClose }) {
       if (listener.current) listener.current.stop()
       if (speaker.current) speaker.current.stop()
       recognizer.current = null
+      stopBrowser()
     }
   }, [])
 
@@ -206,6 +237,9 @@ export default function VoiceMode({ live, onSend, onClose }) {
   function toggleMute() {
     const next = !muted
     setMuted(next)
+    mutedRef.current = next
+    if (next) stopBrowser()
+    else if (recognizer.current && !(speaker.current && speaker.current.busy)) listenBrowser()
     if (listener.current) {
       if (next) listener.current.pause()
       else listener.current.resume()

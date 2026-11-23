@@ -392,7 +392,7 @@ async def run_events(run_id: str, request: Request, after: int = 0):
             try:
                 await asyncio.wait_for(signal.wait(), 15)
             except asyncio.TimeoutError:
-                yield ": ping\n\n"
+                yield "event: ping\ndata: {}\n\n"
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
     return StreamingResponse(stream(), media_type="text/event-stream", headers=headers)

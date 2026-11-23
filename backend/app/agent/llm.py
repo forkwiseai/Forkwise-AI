@@ -506,7 +506,8 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
     while attempt < attempts:
         streamed = {"any": False}
         try:
-            return await stream_once(model, body, on_delta, streamed, stop_flag)
+            result = await stream_once(model, body, on_delta, streamed, stop_flag)
+            return await finish_cut_answer(model, body, on_delta, stop_flag, result)
         except ModelError as problem:
             last_problem = str(problem)
             if streamed["any"]:
@@ -546,6 +547,48 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
         await asyncio.sleep(min(30, 2 ** attempt * 1.5))
         attempt = attempt + 1
     raise ModelError(last_problem or "The model did not answer.")
+
+
+async def finish_cut_answer(model, body, on_delta, stop_flag, result):
+    # When the connection broke in the middle of a written answer, ask for the rest and stream it
+    # straight after what the user already sees, so the reply reads as one piece.
+    tries = 0
+    while result["finish"] == "interrupted" and not result["tool_calls"] and result["content"].strip() and tries < 2:
+        if stop_flag is not None and stop_flag.is_set():
+            break
+        tries = tries + 1
+        more_body = dict(body)
+        more_body["messages"] = list(body["messages"]) + [
+            {"role": "assistant", "content": result["content"]},
+            {"role": "user", "content": CONTINUE_NOTE},
+        ]
+        try:
+            more = await stream_once(model, more_body, on_delta, {"any": False}, stop_flag)
+        except (ModelError, httpx.TransportError, httpx.TimeoutException) as problem:
+            print("MODEL CONTINUE failed", model.get("key"), str(problem)[:200], flush=True)
+            break
+        result = {
+            "content": result["content"] + more["content"],
+            "reasoning": result["reasoning"] + more["reasoning"],
+            "tool_calls": more["tool_calls"],
+            "usage": {
+                "prompt_tokens": result["usage"]["prompt_tokens"] + more["usage"]["prompt_tokens"],
+                "completion_tokens": result["usage"]["completion_tokens"] + more["usage"]["completion_tokens"],
+            },
+            "finish": more["finish"],
+        }
+    if result["finish"] == "interrupted" and result["tool_calls"]:
+        # A tool call cut in half cannot be trusted; let the agent loop ask for it again.
+        result["tool_calls"] = [call for call in result["tool_calls"] if valid_json(call["function"].get("arguments") or "{}")]
+    return result
+
+
+def valid_json(text):
+    try:
+        json.loads(text)
+        return True
+    except ValueError:
+        return False
 
 
 COOLDOWNS = {}
@@ -694,6 +737,32 @@ def retryable(text):
     return False
 
 
+FIRST_WAIT = int(config.text("STREAM_FIRST_SECONDS", "240") or 240)
+IDLE_WAIT = int(config.text("STREAM_IDLE_SECONDS", "60") or 60)
+CONTINUE_NOTE = "Your last message was cut off by a connection problem. Continue exactly where it stopped, without repeating anything and without saying that you are continuing."
+
+
+class StreamStopped(Exception):
+    pass
+
+
+async def next_line(lines, waited, stop_flag):
+    # Waits for the next line, but notices the stop button and a silent provider within a second.
+    task = asyncio.ensure_future(lines.__anext__())
+    spent = 0
+    while True:
+        finished, _ = await asyncio.wait({task}, timeout=1)
+        if finished:
+            return task.result()
+        spent = spent + 1
+        if stop_flag is not None and stop_flag.is_set():
+            task.cancel()
+            raise StreamStopped()
+        if spent >= waited:
+            task.cancel()
+            raise asyncio.TimeoutError()
+
+
 async def stream_once(model, body, on_delta, streamed, stop_flag):
     content = []
     reasoning = []
@@ -707,7 +776,25 @@ async def stream_once(model, body, on_delta, streamed, stop_flag):
             if response.status_code != 200:
                 raw = await response.aread()
                 raise ModelError("HTTP " + str(response.status_code) + ": " + raw.decode("utf-8", "replace")[:600])
-            async for line in response.aiter_lines():
+            lines = response.aiter_lines().__aiter__()
+            while True:
+                # A provider can stall in the middle of an answer. Waiting minutes for it leaves the
+                # chat frozen, so a long silence after the answer started counts as a broken stream.
+                try:
+                    line = await next_line(lines, IDLE_WAIT if streamed["any"] else FIRST_WAIT, stop_flag)
+                except StopAsyncIteration:
+                    break
+                except StreamStopped:
+                    finish = "stopped"
+                    break
+                except (asyncio.TimeoutError, httpx.TransportError, httpx.TimeoutException) as problem:
+                    if streamed["any"]:
+                        finish = "interrupted"
+                        print("MODEL STREAM interrupted", model.get("key"), type(problem).__name__, flush=True)
+                        break
+                    if isinstance(problem, asyncio.TimeoutError):
+                        raise httpx.ReadTimeout("The model did not start answering in time.")
+                    raise
                 if stop_flag is not None and stop_flag.is_set():
                     finish = "stopped"
                     break
