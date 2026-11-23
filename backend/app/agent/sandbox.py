@@ -155,6 +155,7 @@ async def start_box(wid):
         "docker", "run", "-d", "--name", name, "--hostname", "forkwise",
         "--network", config.SANDBOX_NETWORK,
         "--memory", config.SANDBOX_MEMORY, "--cpus", config.SANDBOX_CPUS,
+        "--log-opt", "max-size=5m", "--log-opt", "max-file=2",
         "--pids-limit", config.SANDBOX_PIDS,
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--user", str(os.getuid()) + ":" + str(os.getgid()),

@@ -137,7 +137,7 @@ User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$CODE/backend
 Environment=ENV_FILE=$ENV_FILE
-ExecStart=$VENV/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port $PORT_VALUE --proxy-headers --forwarded-allow-ips 127.0.0.1 --timeout-keep-alive 75
+ExecStart=$VENV/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port $PORT_VALUE --proxy-headers --forwarded-allow-ips 127.0.0.1 --timeout-keep-alive 75 --no-access-log
 Restart=always
 RestartSec=3
 LimitNOFILE=65535

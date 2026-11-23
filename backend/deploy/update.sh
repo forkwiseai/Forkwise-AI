@@ -40,6 +40,7 @@ if echo "$CHANGED" | grep -q "^backend/deploy/update.sh"; then
 fi
 
 chown -R forkwise:forkwise "$CODE"
+bash "$CODE/backend/deploy/quiet-logs.sh" --no-restart || true
 systemctl restart forkwise-api
 
 PORT_VALUE="$(grep -E '^PORT=' "$ENV_FILE" | cut -d= -f2)"

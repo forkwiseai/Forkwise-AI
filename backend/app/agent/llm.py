@@ -518,7 +518,8 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
                     print("MODEL 400", model["key"], model["id"], "|", body_summary(body), "| tools:", ",".join(tool_names(body.get("tools"))), "| messages:", message_shapes(body.get("messages")), "| raw:", last_problem[:400], flush=True)
                     for tool in body.get("tools") or []:
                         name = (tool.get("function") or {}).get("name") or ""
-                        if name.startswith("my_") or name.startswith("mcp__"):
+                        if (name.startswith("my_") or name.startswith("mcp__")) and name not in LOGGED_TOOLS:
+                            LOGGED_TOOLS.add(name)
                             print("MODEL 400 user tool", name, json.dumps(tool.get("function", {}).get("parameters"), ensure_ascii=False)[:600], flush=True)
                 if "thought_signature" in last_problem:
                     raise ModelError(last_problem)
@@ -593,6 +594,7 @@ def valid_json(text):
 
 
 COOLDOWNS = {}
+LOGGED_TOOLS = set()
 LEARNED_CONTEXT = {}
 MIN_ANSWER_ROOM = 1500
 
@@ -787,6 +789,7 @@ async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=Non
     calls = {}
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     finish = ""
+    ended = {"done": False}
     last_index = 0
     timeout = httpx.Timeout(connect=CONNECT_WAIT, read=(first_wait or max(FIRST_WAIT, IDLE_WAIT)) + 5, write=60, pool=20)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -801,6 +804,11 @@ async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=Non
                 try:
                     line = await next_line(lines, IDLE_WAIT if streamed["any"] else (first_wait or FIRST_WAIT), stop_flag)
                 except StopAsyncIteration:
+                    if streamed["any"] and not finish and not ended["done"]:
+                        # The provider hung up without saying the answer was finished: treat it as cut,
+                        # so the rest is asked for instead of leaving a half answer.
+                        finish = "interrupted"
+                        print("MODEL STREAM closed early", model.get("key"), flush=True)
                     break
                 except StreamStopped:
                     finish = "stopped"
@@ -821,6 +829,7 @@ async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=Non
                     continue
                 data = line[5:].strip()
                 if data == "[DONE]":
+                    ended["done"] = True
                     break
                 try:
                     packet = json.loads(data)
