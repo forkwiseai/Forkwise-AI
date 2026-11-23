@@ -91,8 +91,14 @@ export function buildFlow(items) {
     if (item.role !== "assistant") continue
     if (item.reasoning && item.reasoning.trim()) pendingThought = pendingThought ? pendingThought + "\n\n" + item.reasoning : item.reasoning
     if (item.content && item.content.trim()) {
-      flushThought()
-      nodes.push({ type: "say", text: item.content, key: "s" + item.id })
+      const previous = nodes[nodes.length - 1]
+      if (item.meta && item.meta.continues && previous && previous.type === "say") {
+        // The rest of an answer that was cut off: show it as one piece, not two paragraphs.
+        previous.text = previous.text + item.content
+      } else {
+        flushThought()
+        nodes.push({ type: "say", text: item.content, key: "s" + item.id })
+      }
     }
     const calls = item.tool_calls || []
     const regular = calls.filter((call) => STANDALONE.indexOf(call.function.name) === -1 && call.function.name !== "task")

@@ -97,7 +97,7 @@ function applyEvent(state, event) {
     live.reasoning = ""
     live.drafts = {}
     if (hasMessage(state.messages, event.id)) return { ...state, live }
-    const message = { id: event.id, role: "assistant", content: event.content, reasoning: event.reasoning, tool_calls: event.tool_calls || [], meta: {} }
+    const message = { id: event.id, role: "assistant", content: event.content, reasoning: event.reasoning, tool_calls: event.tool_calls || [], meta: event.meta || {} }
     return { ...state, messages: [...state.messages, message], live }
   }
   if (kind === "tool_start") {

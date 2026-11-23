@@ -834,8 +834,12 @@ async def run_main(run, first_text):
             calls, content, reasoning, leaked, unknown = recover_calls(answer, run.tool_specs)
             if run.stop_flag.is_set():
                 calls = []
-            message_id = save_message(run.chat["id"], "assistant", content, reasoning, calls)
-            run.emit("assistant", {"step": step, "id": message_id, "content": content, "reasoning": reasoning, "tool_calls": calls})
+            said_meta = {}
+            if getattr(run, "continuing", False) and content.strip():
+                said_meta = {"continues": True}
+            run.continuing = False
+            message_id = save_message(run.chat["id"], "assistant", content, reasoning, calls, meta=said_meta)
+            run.emit("assistant", {"step": step, "id": message_id, "content": content, "reasoning": reasoning, "tool_calls": calls, "meta": said_meta})
             run.emit("usage", {"tokens_in": run.tokens_in, "tokens_out": run.tokens_out})
             if content.strip():
                 final_text = content
@@ -886,6 +890,7 @@ async def run_main(run, first_text):
                 if answer["finish"] in ["length", "interrupted"] and nudges < 3:
                     nudges = nudges + 1
                     why = "it was too long" if answer["finish"] == "length" else "the connection to the AI provider broke"
+                    run.continuing = not answer.get("tool_calls") and bool(content.strip())
                     save_message(run.chat["id"], "note", "Your answer was cut off because " + why + ". Continue exactly where you stopped, without repeating anything. Write big files in smaller parts.", hidden=1)
                     continue
                 break

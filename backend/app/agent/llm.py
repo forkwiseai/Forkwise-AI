@@ -539,6 +539,9 @@ async def stream_single(model, messages, tools, on_delta, max_tokens, temperatur
                         print("MODEL LIMIT learned", model["key"], LEARNED_CONTEXT[model["key"]], flush=True)
                         raise ModelError("Context window limit (" + str(LEARNED_CONTEXT[model["key"]]) + ") exceeded: this chat is longer than " + str(model.get("label") or model["key"]) + " accepts, so it will be compacted.")
                     raise ModelError("This chat has a message the AI provider will not accept, so it cannot continue. Start a new chat, or pick another model. (" + last_problem[:200] + ")")
+            if first_wait and status_of(last_problem) in FAILOVER_STATUS:
+                # Another model is waiting: move on now instead of retrying this one.
+                raise
             if not retryable(last_problem):
                 raise
         except (httpx.TransportError, httpx.TimeoutException) as problem:
@@ -651,6 +654,12 @@ def wait_seconds(text):
         seconds = float(found.group(3) or 0)
         return int(hours * 3600 + minutes * 60 + seconds) + 1
     status = status_of(text)
+    lowered = text.lower()
+    if status == 402 or "insufficient" in lowered or "credits" in lowered and status != 429:
+        # Out of credit: it will not come back on its own soon.
+        return 3600
+    if status == 429 and ("per-day" in lowered or "per day" in lowered or "daily" in lowered or "quota" in lowered):
+        return 3 * 3600
     if status in [401, 403, 404]:
         return 3600
     if status == 429:
@@ -755,7 +764,7 @@ def retryable(text):
 
 
 FIRST_WAIT = int(config.text("STREAM_FIRST_SECONDS", "240") or 240)
-IDLE_WAIT = int(config.text("STREAM_IDLE_SECONDS", "60") or 60)
+IDLE_WAIT = int(config.text("STREAM_IDLE_SECONDS", "40") or 40)
 # When another model can take over, a model that has not started answering is given up on sooner.
 BACKUP_WAIT = int(config.text("STREAM_BACKUP_SECONDS", "45") or 45)
 CONNECT_WAIT = int(config.text("STREAM_CONNECT_SECONDS", "8") or 8)
