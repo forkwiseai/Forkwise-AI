@@ -257,21 +257,24 @@ Open **Settings, Secrets** and save a value under a name like \`STRIPE_KEY\`. Fo
   },
   "desktop-app": {
     title: "The desktop app",
-    summary: "A Cursor-style editor with the agent beside your code, on this computer or in the cloud.",
-    body: `Forkwise Desktop 4 is an editor built around the agent: a file explorer on the left, Monaco tabs in the middle, real terminals underneath and the agent on the right. It runs on Windows, macOS and Linux.
+    summary: "Chat with the agent about your folders, and open a full editor when you want to see the code.",
+    body: `Forkwise Desktop runs on Windows, macOS and Linux and has two views:
+
+- **Agents** (the default): your chats on the left, grouped by the folder they work in, and the conversation in the middle. Start a chat by choosing a folder and **This PC** or **Cloud** above the message box.
+- **IDE**: a file explorer, Monaco tabs, real terminals and the agent on the right. Press **IDE** in the title bar or **Ctrl Alt E** to switch.
 
 ## Install and sign in
 
 Download the app from the [Download page](/download), install it and sign in. The app links your computer to your account by itself; you never paste a token. The installers are not code signed yet, so Windows SmartScreen or macOS may ask you to confirm the first run.
 
-## This computer or Cloud
+## This PC or Cloud
 
-The switch in the title bar decides where new chats run:
+The picker above the message box decides where a new chat runs:
 
-- **This computer**: the agent reads, edits and runs the folder you opened, in your own shell. Open a folder with **Ctrl O** or from the welcome screen.
+- **This PC**: the agent reads, edits and runs the folder you chose, in your own shell. Pick a recent folder, or open another with **Ctrl O**.
 - **Cloud**: the same window works on a cloud workspace, exactly like the web app. Your computer does not need to stay on.
 
-Set the default in **Settings, General, New chats run on**. The line above the message box always shows where a chat runs.
+The line above the message box always shows where a chat runs. You can also talk with the agent: the round button in an empty message box starts a voice conversation.
 
 ## Modes
 
