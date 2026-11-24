@@ -15,6 +15,20 @@ class UserChange(BaseModel):
     is_admin: int = -1
 
 
+def treasury_status(request: Request):
+    admin_user(request)
+    from app import treasury
+    return treasury.status()
+
+
+async def treasury_check(request: Request):
+    admin_user(request)
+    import httpx
+    from app import treasury
+    async with httpx.AsyncClient() as client:
+        return await treasury.check(client)
+
+
 def overview(request: Request):
     admin_user(request)
     now = db.now()
@@ -206,6 +220,8 @@ def register_routes(app):
     app.add_api_route("/api/admin/announce", announce, methods=["POST"])
     app.add_api_route("/api/admin/announce/audience", announce_audience, methods=["GET"])
     app.add_api_route("/api/admin/overview", overview, methods=["GET"])
+    app.add_api_route("/api/admin/treasury", treasury_status, methods=["GET"])
+    app.add_api_route("/api/admin/treasury/check", treasury_check, methods=["POST"])
     app.add_api_route("/api/admin/users", users, methods=["GET"])
     app.add_api_route("/api/admin/users/{user_id}", change_user, methods=["POST"])
     app.add_api_route("/api/admin/users/{user_id}", delete_user, methods=["DELETE"])

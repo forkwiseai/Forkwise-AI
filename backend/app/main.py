@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app import config, db
-from app import crypto_pay
+from app import crypto_pay, treasury
 from app.routes import auth, chats, files, settings, preview, terminal, site, billing, google, admin, desktop, connections, schedules, keys, browser, studio, avatar, plugins, providers as provider_routes, voice as voice_routes
 from app.agent import sandbox, runs
 
@@ -30,6 +30,7 @@ async def on_start():
     loop.create_task(schedules.loop())
     loop.create_task(purge_loop())
     loop.create_task(crypto_pay.loop())
+    loop.create_task(treasury.loop())
     db.execute("UPDATE runs SET status = 'stopped' WHERE status = 'running'")
 
 

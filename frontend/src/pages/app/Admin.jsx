@@ -51,6 +51,42 @@ function Stat({ icon: Icon, label, value, note }) {
   )
 }
 
+function Treasury() {
+  const { toast } = useStore()
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.get("/api/admin/treasury").then(setData).catch(() => setData(null))
+  }, [])
+  async function refresh() {
+    setBusy(true)
+    try {
+      setData(await api.post("/api/admin/treasury/check"))
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+    setBusy(false)
+  }
+  if (!data) return null
+  const tone = data.critical ? "var(--fw-danger, #c0392b)" : data.low ? "var(--fw-warning, #b7791f)" : "inherit"
+  return (
+    <Card title="OpenRouter balance" description="Checked every hour. Admins get an email when it is time to top up." action={<Button size="sm" variant="ghost" loading={busy} onClick={refresh}>Check now</Button>}>
+      <div className="fw-card-body">
+        {data.balance === null || data.balance === undefined ? (
+          <p className="fw-muted fw-small-text">{data.error || "No balance yet."}</p>
+        ) : (
+          <div className="fw-stats-row is-3">
+            <div className="fw-stat"><span>Balance</span><strong style={{ color: tone }}>{money(data.balance)}</strong><small>{data.days_left !== null ? data.days_left + " days left" : "No spending yet"}</small></div>
+            <div className="fw-stat"><span>Spent, last 7 days</span><strong>{money(data.burn7)}</strong><small>{money(data.daily) + " a day"}</small></div>
+            <div className="fw-stat"><span>{data.low ? "Send now" : "Keep at least"}</span><strong style={{ color: tone }}>{data.low ? data.send_usdc + " USDC" : money(data.target)}</strong><small>{data.low ? "Buys $" + data.top_up + " of credits, 5% crypto fee included" : "1.5 weeks of spending"}</small></div>
+          </div>
+        )}
+        {data.low && <p className="fw-small-text" style={{ marginTop: 10 }}><a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">Open OpenRouter credits</a>, choose crypto, and send the amount above in USDC from your wallet. Check the network the checkout asks for before sending.</p>}
+      </div>
+    </Card>
+  )
+}
+
 function Overview() {
   const [data, setData] = useState(null)
   const [hover, setHover] = useState(-1)
@@ -63,6 +99,7 @@ function Overview() {
   const shown = hover >= 0 ? data.days[hover] : data.days[data.days.length - 1]
   return (
     <div className="fw-admin-stack">
+      <Treasury />
       <div className="fw-stats-row">
         <Stat icon={Users} label="Users" value={number(data.users)} note={number(data.new_week) + " new this week"} />
         <Stat icon={Activity} label="Active this week" value={number(data.active_week)} note={data.users ? Math.round((data.active_week / data.users) * 100) + "% of users" : ""} />
