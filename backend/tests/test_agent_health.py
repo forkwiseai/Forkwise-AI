@@ -22,3 +22,11 @@ def test_health_demotes_failing_model():
     for _ in range(8):
         llm.record_turn("x:bad", True)
     assert llm.health_of("x:bad") < llm.DEMOTE_ABOVE
+
+
+def test_prompt_layers():
+    from app.agent import prompt
+    assert "Testing and debugging" not in prompt.BASE
+    assert "Testing and debugging" in prompt.BUILD
+    assert not prompt.wants_build({"kind": "chat"}, "hello")
+    assert prompt.wants_build({"kind": "chat"}, "build me a site")

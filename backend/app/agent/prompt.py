@@ -60,6 +60,34 @@ Style:
 - Be direct and honest. Say clearly when something did not work.
 - Use Markdown: short paragraphs, lists when they help, code blocks with a language. No filler."""
 
+def _cut(text, start, end=None):
+    a = text.index(start)
+    b = text.index(end) if end else len(text)
+    return text[a:b].strip()
+
+
+# The prompt is layered. CORE is always sent; the other layers are added only when the request or the tools need them.
+_ALL = BASE
+_COMPUTER_LINE = [line for line in _ALL.split("\n") if line.startswith("- If the computer tool")][0]
+_GITHUB_LINE = [line for line in _ALL.split("\n") if line.startswith("- If the github tool")][0]
+_PROJECTS = _cut(_ALL, "How real projects are built", "Testing and debugging")
+_TESTING = _cut(_ALL, "Testing and debugging", "Growing your own abilities")
+_GROWING = _cut(_ALL, "Growing your own abilities", "Style:")
+_STYLE = _cut(_ALL, "Style:")
+CORE = (_cut(_ALL, "You are Forkwise", "How real projects are built")).replace(_COMPUTER_LINE + "\n", "").replace(_GITHUB_LINE + "\n", "")
+BASE = CORE + "\n\n" + _STYLE
+BUILD = _PROJECTS + "\n\n" + _TESTING + "\n\n" + _GROWING
+TOOL_NOTES = {"computer": _COMPUTER_LINE, "github": _GITHUB_LINE}
+
+BUILD_WORDS = __import__("re").compile(r"build|create|make|fix|bug|code|script|site|website|app\b|api|deploy|install|run |test|refactor|page|database|project|server|file|design|video|ساخت|بساز|درست|کد|سایت|اپ|برنامه|باگ|فایل|پروژه|صفحه|اجرا|نصب|طراحی|ویدیو|ویدئو", __import__("re").I)
+
+
+def wants_build(chat, request):
+    if (chat.get("kind") or "chat") != "chat" or chat.get("local_path") or not request:
+        return True
+    return bool(BUILD_WORDS.search(request))
+
+
 PLAN = """PLAN MODE IS ON. You may only read, search and research; you cannot change files or run commands. Study the request and the project, ask the user with ask_user if something important is unclear, then write a complete, concrete plan and call exit_plan_mode with it. Do not start building."""
 
 ASK = """The user wants to approve changes. Tools that change files or run commands will ask the user first; if a call is denied, accept it and continue another way or ask what they want."""
@@ -159,8 +187,13 @@ def profile_text(profile):
     return "About the user (from their sign-up answers, use it to tailor examples and defaults):\n- " + "\n- ".join(lines)
 
 
-def build(chat, user, project, local_notes=""):
+def build(chat, user, project, local_notes="", request="", tool_names=()):
     parts = [BASE]
+    if wants_build(chat, request):
+        parts.append(BUILD)
+    for name, line in TOOL_NOTES.items():
+        if name in tool_names:
+            parts.append(line)
     parts.append("Today is " + time.strftime("%A %d %B %Y, %H:%M UTC", time.gmtime()) + ".")
     parts.append("The user is " + (user.get("name") or "the user") + ".")
     settings = db.load_json(user.get("settings"), {})

@@ -155,7 +155,7 @@ def build_context(run):
             if meta.get("image"):
                 image_rows.append(row["id"])
     keep_images = image_rows[-KEEP_IMAGES:]
-    messages = [{"role": "system", "content": prompt.build(run.chat, run.user, run.project, run.local_notes)}]
+    messages = [{"role": "system", "content": prompt.build(run.chat, run.user, run.project, run.local_notes, getattr(run, "request", "") or "", [spec["function"]["name"] for spec in (getattr(run, "tool_specs", None) or [])])}]
     pending = []
     images = []
     for row in rows:
