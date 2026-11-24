@@ -100,17 +100,17 @@ def read_models():
     models = []
     main_url = text("LLM_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
     main_key = text("LLM_API_KEY")
-    add_models(models, "main", main_url, main_key, text("LLM_MODELS"), flag("LLM_VISION", True))
+    add_models(models, "main", main_url, main_key, text("LLM_MODELS"), flag("LLM_VISION", True), flag("LLM_FREE", False))
     for index in range(1, 10):
         prefix = "PROVIDER_" + str(index) + "_"
         url = text(prefix + "URL").rstrip("/")
         key = text(prefix + "KEY")
         if url and key:
-            add_models(models, "p" + str(index), url, key, text(prefix + "MODELS"), flag(prefix + "VISION", False))
+            add_models(models, "p" + str(index), url, key, text(prefix + "MODELS"), flag(prefix + "VISION", False), flag(prefix + "FREE", False))
     return models
 
 
-def add_models(models, provider, url, key, spec, vision):
+def add_models(models, provider, url, key, spec, vision, free=False):
     for item in spec.split(","):
         item = item.strip()
         if item == "":
@@ -136,6 +136,9 @@ def add_models(models, provider, url, key, spec, vision):
             "api_key": key,
             "vision": vision,
             "context": size,
+            # free: the key is on a no-billing tier (NVIDIA build, Groq free, Gemini free, Mistral free...), so a call
+            # costs Forkwise nothing and must not count against a plan's dollar limit.
+            "free": bool(free),
         })
 
 

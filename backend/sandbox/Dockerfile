@@ -8,10 +8,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl wget git jq zip unzip ripgrep ffmpeg imagemagick sqlite3 build-essential \
-        pandoc poppler-utils python3-venv procps lsof htop nano less ca-certificates gnupg \
+        pandoc poppler-utils python3-venv procps lsof htop nano less ca-certificates gnupg psmisc \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g pnpm yarn serve \
+    && npm install -g pnpm yarn serve pptxgenjs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Office rendering, so decks and documents can be turned into PDF/PNG and looked at before they are handed over,
+# and fonts with Persian/Arabic letters. Optional: a missing package must not break the sandbox build.
+RUN apt-get update \
+    && (apt-get install -y --no-install-recommends libreoffice-impress libreoffice-writer libreoffice-calc || true) \
+    && (apt-get install -y --no-install-recommends fonts-vazirmatn || true) \
+    && (apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-color-emoji || true) \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
@@ -22,6 +30,8 @@ RUN pip install --no-cache-dir \
 RUN mkdir -p /home/agent /opt/forkwise /workspace && chmod 1777 /home/agent /workspace
 COPY shot.py /opt/forkwise/shot.py
 COPY browser.py /opt/forkwise/browser.py
+COPY deckkit.py /opt/forkwise/deckkit.py
+ENV NODE_PATH=/usr/lib/node_modules
 COPY motion /opt/forkwise/motion
 
 WORKDIR /workspace

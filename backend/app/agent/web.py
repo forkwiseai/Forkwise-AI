@@ -85,8 +85,26 @@ async def duckduckgo(query):
     return results
 
 
+def bing_target(url):
+    """Bing sometimes wraps result links as bing.com/ck/a?...&u=a1<base64url>; returns the real address."""
+    import base64
+    if "bing.com/ck/a" not in url:
+        return url
+    found = re.search(r"[?&]u=a1([^&]+)", url)
+    if not found:
+        return url
+    data = found.group(1)
+    try:
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8", "replace")
+    except (ValueError, UnicodeDecodeError):
+        return url
+
+
 async def bing(query):
-    response = await get("https://www.bing.com/search", params={"q": query})
+    params = {"q": query}
+    if is_persian(query):
+        params["setlang"] = "fa"
+    response = await get("https://www.bing.com/search", params=params)
     results = []
     if response.status_code != 200:
         return results
@@ -98,29 +116,129 @@ async def bing(query):
         text = ""
         if snippet:
             text = clean(snippet.group(1))
-        results.append({"title": clean(found.group(2)), "url": html.unescape(found.group(1)), "snippet": text})
+        results.append({"title": clean(found.group(2)), "url": bing_target(html.unescape(found.group(1))), "snippet": text})
     return results
 
 
+async def wikipedia(query):
+    """Encyclopedia hits in the query's language: few, but almost never off-topic."""
+    lang = "fa" if is_persian(query) else "en"
+    response = await get("https://" + lang + ".wikipedia.org/w/api.php", params={"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5, "utf8": 1})
+    results = []
+    if response.status_code != 200:
+        return results
+    for item in ((response.json().get("query") or {}).get("search") or []):
+        title = item.get("title", "")
+        results.append({"title": title, "url": "https://" + lang + ".wikipedia.org/wiki/" + quote_plus(title.replace(" ", "_")).replace("%2F", "/"), "snippet": clean(item.get("snippet"))})
+    return results
+
+
+# ---- Ranking -------------------------------------------------------------------------------------------------
+# Each engine alone is noisy: the old search returned whatever the first engine that answered gave, ads and
+# off-topic pages included. Now every engine runs at once and the lists are fused with Reciprocal Rank Fusion,
+#     rrf(d) = sum over engines e of 1 / (K + rank_e(d)),   K = 60   (Cormack, Clarke & Buettcher, SIGIR 2009)
+# which rewards a page several engines agree on without trusting any one engine's scores. Then each result is
+# checked against the query itself: coverage = share of the query's distinct terms found in title + snippet
+# (after Persian/Arabic letter normalisation). The final score is rrf * (0.35 + coverage); results with zero
+# coverage are dropped whenever at least three results do cover the query, which removes the unrelated hits.
+
+RRF_K = 60
+STOP = {"the", "a", "an", "of", "and", "or", "in", "on", "for", "to", "is", "are", "what", "how", "who", "with", "by",
+        "از", "و", "در", "به", "که", "را", "با", "این", "آن", "برای", "یک", "چه", "چی", "است", "هست", "می", "ها"}
+AD_HOSTS = ("duckduckgo.com/y.js", "bing.com/aclick", "doubleclick.net", "googleadservices.com")
+
+
+def is_persian(text):
+    return bool(re.search(r"[\u0600-\u06FF]", text or ""))
+
+
+def normalize(text):
+    text = (text or "").lower()
+    text = text.replace("ي", "ی").replace("ك", "ک").replace("ة", "ه").replace("\u200c", " ").replace("ـ", "")
+    text = re.sub(r"[\u064B-\u065F]", "", text)  # Arabic diacritics
+    return text
+
+
+def terms(text):
+    words = re.findall(r"[\w\u0600-\u06FF]+", normalize(text))
+    return [word for word in words if word not in STOP and (len(word) > 1 or word.isdigit())]
+
+
+def coverage(query_terms, result):
+    if not query_terms:
+        return 1.0
+    haystack = normalize(result.get("title", "") + " " + result.get("snippet", "") + " " + unquote(result.get("url", "")))
+    compact = haystack.replace(" ", "")
+    hits = 0
+    for term in query_terms:
+        if len(term) >= 5 and term in compact:
+            hits += 1  # "زندگینامه" matches "زندگی‌نامه" once the half-space is gone
+            continue
+        # prefix match covers simple inflections ("شهید" in "شهیدان", "build" in "building")
+        if re.search(r"(?<![\w\u0600-\u06FF])" + re.escape(term[:max(3, len(term) - 2)] if len(term) > 5 else term), haystack):
+            hits += 1
+    return hits / len(query_terms)
+
+
+def url_key(url):
+    parts = urlparse(url)
+    host = (parts.hostname or "").replace("www.", "").replace("m.", "", 1) if parts.hostname else ""
+    return host + parts.path.rstrip("/").lower()
+
+
+def fuse(query, lists):
+    query_terms = list(dict.fromkeys(terms(query)))
+    merged = {}
+    for engine_results in lists:
+        for rank, item in enumerate(engine_results, start=1):
+            url = item.get("url", "")
+            if not url.startswith("http") or any(ad in url for ad in AD_HOSTS):
+                continue
+            key = url_key(url)
+            entry = merged.get(key)
+            if entry is None:
+                entry = dict(item)
+                entry["rrf"] = 0.0
+                merged[key] = entry
+            elif len(item.get("snippet", "")) > len(entry.get("snippet", "")):
+                entry["snippet"] = item["snippet"]
+            entry["rrf"] += 1.0 / (RRF_K + rank)
+    ranked = list(merged.values())
+    for entry in ranked:
+        entry["coverage"] = round(coverage(query_terms, entry), 3)
+        entry["score"] = entry["rrf"] * (0.35 + entry["coverage"])
+    ranked.sort(key=lambda entry: entry["score"], reverse=True)
+    covered = [entry for entry in ranked if entry["coverage"] > 0]
+    if len(covered) >= 3:
+        ranked = covered
+    for entry in ranked:
+        entry.pop("rrf", None)
+        entry.pop("score", None)
+    return ranked
+
+
 async def search(query):
+    import asyncio
     engines = []
     if config.SEARXNG_URL:
         engines.append(searxng)
     if config.SEARCH_API_KEY:
         engines.append(brave)
-    engines.append(duckduckgo)
-    engines.append(bing)
+    engines.extend([duckduckgo, bing, wikipedia])
     problems = []
-    for engine in engines:
+
+    async def run(engine):
         try:
-            results = await engine(query)
+            return await asyncio.wait_for(engine(query), timeout=12)
         except Exception as problem:
-            problems.append(engine.__name__ + ": " + str(problem)[:80])
-            continue
-        if len(results) > 0:
-            return results[:10]
-        problems.append(engine.__name__ + ": no results")
-    raise RuntimeError("Search failed (" + "; ".join(problems) + ")")
+            problems.append(engine.__name__ + ": " + (str(problem)[:80] or type(problem).__name__))
+            return []
+
+    lists = await asyncio.gather(*(run(engine) for engine in engines))
+    results = fuse(query, lists)
+    if results:
+        return results[:10]
+    raise RuntimeError("Search failed (" + ("; ".join(problems) or "no engine found anything") + ")")
 
 
 def public_host(host):

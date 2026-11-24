@@ -16,6 +16,7 @@ and keeps the cached prefix intact:
 
 Arguments are always checked against the real schema on the server, so a stub never lets bad input through."""
 
+import re
 import json
 import threading
 
@@ -99,6 +100,52 @@ def type_ok(value, kind):
         if isinstance(value, python):
             return True
     return False
+
+
+def coerce_value(value, kind):
+    """Turns what a model meant into what the schema says: "8000" -> 8000, "true" -> True, 8000.0 -> 8000,
+    '["a","b"]' -> ["a","b"]. Small models often quote numbers; refusing those calls wastes a whole turn."""
+    kinds = kind if isinstance(kind, list) else [kind]
+    if type_ok(value, kind):
+        if "integer" in kinds and isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+    for item in kinds:
+        if isinstance(value, str):
+            text = value.strip()
+            if item == "integer" and re.fullmatch(r"[+-]?\d+(\.0+)?", text):
+                return int(float(text))
+            if item == "number" and re.fullmatch(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", text):
+                number = float(text)
+                return int(number) if number.is_integer() else number
+            if item == "boolean" and text.lower() in ("true", "false", "yes", "no", "1", "0"):
+                return text.lower() in ("true", "yes", "1")
+            if item in ("array", "object") and text[:1] in "[{":
+                try:
+                    parsed = json.loads(text)
+                except ValueError:
+                    continue
+                if isinstance(parsed, TYPES[item]):
+                    return parsed
+            if item == "array" and text:
+                return [part.strip() for part in text.split(",") if part.strip()]
+        if item == "integer" and isinstance(value, float) and value.is_integer():
+            return int(value)
+        if item == "string" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(value)
+    return value
+
+
+def coerce(spec, args):
+    """Fixes top-level argument types in place, following the tool's schema. Returns args."""
+    if not spec or not isinstance(args, dict):
+        return args
+    properties = ((spec.get("function") or {}).get("parameters") or {}).get("properties") or {}
+    for key in list(args.keys()):
+        rule = properties.get(key)
+        if rule and rule.get("type") is not None and args[key] is not None:
+            args[key] = coerce_value(args[key], rule.get("type"))
+    return args
 
 
 def problems(spec, args):

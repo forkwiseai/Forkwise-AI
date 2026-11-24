@@ -9,14 +9,17 @@ from fastapi import HTTPException
 from app import config, db, vault
 
 PRESETS = [
+    {"id": "nvidia", "name": "NVIDIA (free)", "url": "https://integrate.api.nvidia.com/v1", "models": "nvidia/nemotron-3-super-120b-a12b,deepseek-ai/deepseek-v4-flash", "vision": False, "keys": "https://build.nvidia.com/settings/api-keys"},
+    {"id": "gemini", "name": "Google Gemini (free tier)", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": "gemini-3.8-flash", "vision": True, "keys": "https://aistudio.google.com/apikey"},
+    {"id": "groq", "name": "Groq (free tier)", "url": "https://api.groq.com/openai/v1", "models": "openai/gpt-oss-120b,qwen/qwen3.8-27b", "vision": False, "keys": "https://console.groq.com/keys"},
+    {"id": "mistral", "name": "Mistral (free mode)", "url": "https://api.mistral.ai/v1", "models": "mistral-medium-latest,devstral-medium-latest", "vision": False, "keys": "https://console.mistral.ai/api-keys"},
+    {"id": "sambanova", "name": "SambaNova (free tier)", "url": "https://api.sambanova.ai/v1", "models": "gpt-oss-120b", "vision": False, "keys": "https://cloud.sambanova.ai/apis"},
+    {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": "anthropic/claude-sonnet-5.5,x-ai/grok-4.7", "vision": True, "keys": "https://openrouter.ai/keys"},
     {"id": "openai", "name": "OpenAI", "url": "https://api.openai.com/v1", "models": "gpt-5,gpt-5-mini", "vision": True, "keys": "https://platform.openai.com/api-keys"},
-    {"id": "anthropic", "name": "Anthropic", "url": "https://api.anthropic.com/v1", "models": "claude-sonnet-4-5,claude-opus-4-1", "vision": True, "keys": "https://console.anthropic.com/settings/keys"},
-    {"id": "openrouter", "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "models": "anthropic/claude-sonnet-4.5,openai/gpt-5", "vision": True, "keys": "https://openrouter.ai/keys"},
-    {"id": "gemini", "name": "Google Gemini", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "models": "gemini-2.5-pro,gemini-2.5-flash", "vision": True, "keys": "https://aistudio.google.com/apikey"},
+    {"id": "anthropic", "name": "Anthropic", "url": "https://api.anthropic.com/v1", "models": "claude-sonnet-5-5,claude-opus-5-5", "vision": True, "keys": "https://console.anthropic.com/settings/keys"},
     {"id": "deepseek", "name": "DeepSeek", "url": "https://api.deepseek.com/v1", "models": "deepseek-chat,deepseek-reasoner", "vision": False, "keys": "https://platform.deepseek.com/api_keys"},
-    {"id": "xai", "name": "xAI", "url": "https://api.x.ai/v1", "models": "grok-4", "vision": True, "keys": "https://console.x.ai"},
-    {"id": "groq", "name": "Groq", "url": "https://api.groq.com/openai/v1", "models": "moonshotai/kimi-k2-instruct", "vision": False, "keys": "https://console.groq.com/keys"},
-    {"id": "mistral", "name": "Mistral", "url": "https://api.mistral.ai/v1", "models": "mistral-large-latest,devstral-medium-latest", "vision": False, "keys": "https://console.mistral.ai/api-keys"},
+    {"id": "xai", "name": "xAI", "url": "https://api.x.ai/v1", "models": "grok-4.7,grok-4.3", "vision": True, "keys": "https://console.x.ai"},
+    {"id": "cerebras", "name": "Cerebras", "url": "https://api.cerebras.ai/v1", "models": "gpt-oss-120b", "vision": False, "keys": "https://cloud.cerebras.ai"},
     {"id": "custom", "name": "Other (OpenAI-compatible)", "url": "", "models": "", "vision": False, "keys": ""},
 ]
 

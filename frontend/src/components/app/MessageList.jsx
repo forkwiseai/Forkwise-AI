@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { Brain, Check, ChevronDown, Copy, FileText, History, Info, AlertTriangle, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react"
+import { lazy, Suspense } from "react"
+import { Brain, Check, ChevronDown, Copy, FileText, GitBranch, History, Info, AlertTriangle, Pencil, RefreshCw, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react"
 import Markdown from "./Markdown"
 import { DraftCall, liveLabel, partialField } from "./ToolCall"
 import Flow, { buildFlow } from "./Flow"
@@ -8,22 +9,39 @@ import { useSmoothText } from "../../lib/smooth"
 import ForkMark, { markMode } from "./ForkMark"
 import WaveText from "./WaveText"
 
+const DocViewer = lazy(() => import("./viewer/DocViewer"))
+
 function Reasoning({ text, live }) {
   const [open, setOpen] = useState(false)
+  const [seconds, setSeconds] = useState(0)
   const box = useRef(null)
+  const began = useRef(Date.now())
   useEffect(() => {
-    // While thinking, the newest thoughts slide up from the bottom instead of the box jumping.
-    if (live && !open && box.current) box.current.scrollTop = box.current.scrollHeight
-  }, [text, live, open])
+    if (!live) return undefined
+    const timer = setInterval(() => setSeconds(Math.round((Date.now() - began.current) / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [live])
+  useEffect(() => {
+    // A new step starts with empty thoughts: its timer starts again.
+    if (!text) {
+      began.current = Date.now()
+      setSeconds(0)
+    }
+  }, [Boolean(text)])
+  useEffect(() => {
+    // The closed preview shows the newest thoughts, sliding up from the bottom.
+    if (!open && box.current) box.current.scrollTop = box.current.scrollHeight
+  }, [text, open])
   if (!text || !text.trim()) return null
   return (
-    <div className={"fw-reasoning" + (open ? " fw-open" : "") + (live && !open ? " fw-thinking" : "")}>
-      <button type="button" onClick={() => setOpen(!open)}>
+    <div className={"rs" + (open ? " is-open" : "") + (live ? " is-live" : "")}>
+      <button type="button" className="rs-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <Brain size={14} />
-        <span>{live ? "Thinking…" : "Thought process"}</span>
-        <ChevronDown size={14} />
+        <span>{live ? <WaveText text="Thinking" /> : "Thought process"}</span>
+        {live && seconds > 0 && <span className="rs-time">{seconds}s</span>}
+        <ChevronDown size={13} className={"rs-chev" + (open ? " is-open" : "")} />
       </button>
-      {(open || live) && <div className="fw-reasoning-text" dir="auto" ref={box}>{live && !open ? text.slice(-1500) : text}</div>}
+      <div className={"rs-body" + (open ? " is-open" : "")} ref={box} dir="auto">{text}</div>
     </div>
   )
 }
@@ -50,18 +68,18 @@ function RateButtons() {
   )
 }
 
-function UserMessage({ message, wid, onRewind, canRewind }) {
+function UserMessage({ message, wid, onRewind, onEdit, onFork, canRewind }) {
   const attachments = (message.meta && message.meta.attachments) || []
   const skills = (message.meta && message.meta.skills) || []
   const content = String(message.content || "").replace(SKILL_NOTE, "")
   return (
-    <div className="fw-msg-user">
+    <div className={"fw-msg-user" + (message.clientKey ? " is-new" : "")}>
       <div className="fw-msg-user-bubble">
         {attachments.length > 0 && (
           <div className="fw-msg-attachments">
             {attachments.map((item) => (
               item.kind === "image"
-                ? <img key={item.path} src={rawUrl(wid, item.path)} alt={item.name} />
+                ? <Zoomable key={item.path} src={rawUrl(wid, item.path)} alt={item.name} />
                 : <span key={item.path} className="fw-chip"><FileText size={13} />{item.name || item.path}</span>
             ))}
           </div>
@@ -75,8 +93,18 @@ function UserMessage({ message, wid, onRewind, canRewind }) {
       </div>
       <div className="fw-msg-actions">
         <CopyButton text={content} />
-        {canRewind && !message.temp && (
-          <button type="button" className="fw-iconbtn fw-iconbtn-sm" title="Go back to this message and undo the changes after it" onClick={() => onRewind(message)}>
+        {canRewind && !message.temp && onEdit && (
+          <button type="button" className="fw-iconbtn fw-iconbtn-sm" title="Edit and resend (later messages and their file changes are undone)" aria-label="Edit message" onClick={() => onEdit(message)}>
+            <Pencil size={14} />
+          </button>
+        )}
+        {canRewind && !message.temp && onFork && (
+          <button type="button" className="fw-iconbtn fw-iconbtn-sm" title="Branch: continue from here in a new chat" aria-label="Branch from here" onClick={() => onFork(message)}>
+            <GitBranch size={14} />
+          </button>
+        )}
+        {canRewind && !message.temp && onRewind && (
+          <button type="button" className="fw-iconbtn fw-iconbtn-sm" title="Go back to this message and undo the changes after it" aria-label="Go back to here" onClick={() => onRewind(message)}>
             <History size={14} />
           </button>
         )}
@@ -145,7 +173,7 @@ function ProcessLine({ state, drafts, results }) {
     const timer = setInterval(() => setSeconds(Math.floor((Date.now() - began) / 1000)), 1000)
     return () => clearInterval(timer)
   }, [live.runId])
-  let label = { icon: Sparkles, mode: live.text ? "write" : live.reasoning ? "think" : "work", text: live.text ? "Writing the answer" : live.reasoning ? "Thinking" : "Forkwise is working" }
+  let label = { icon: Sparkles, mode: live.text ? "write" : live.reasoning ? "think" : "work", text: live.text ? "Writing" : live.reasoning ? "Thinking" : "Working" }
   if (live.compacting) label = { icon: Brain, text: "Summarizing earlier messages" }
   const calls = []
   for (const message of state.messages) if (message.role === "assistant") for (const call of message.tool_calls || []) calls.push(call)
@@ -158,17 +186,30 @@ function ProcessLine({ state, drafts, results }) {
     label = { mode: markMode(draft.name || ""), ...liveLabel(draft.name || "", { path: partialField(draft.args, "path"), command: partialField(draft.args, "command"), description: partialField(draft.args, "description"), query: partialField(draft.args, "query"), url: partialField(draft.args, "url") }) }
   }
   const steady = useSteadyLabel(label)
-  const Icon = steady.icon || Sparkles
   return (
-    <div className="fw-process" role="status" aria-live="polite">
-      <span className="fw-process-icon"><ForkMark size={17} active mode={steady.mode || "work"} /></span>
-      <span className="fw-process-text"><WaveText text={steady.text} key={steady.text} /></span>
-      <span className="fw-process-time">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
+    <div className="pl" role="status" aria-live="polite">
+      <span className="pl-mark"><ForkMark size={16} active mode={steady.mode || "work"} /></span>
+      <span className="pl-text" key={steady.text}><WaveText text={steady.text} /></span>
+      <span className="pl-time">{seconds < 60 ? seconds + "s" : Math.floor(seconds / 60) + "m " + String(seconds % 60).padStart(2, "0") + "s"}</span>
     </div>
   )
 }
 
-export default function MessageList({ state, wid, respond, onPreview, onRewind, onApprovePlan, onRevisePlan }) {
+function Zoomable({ src, alt }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="fw-zoomable" onClick={() => setOpen(true)} aria-label={"Open " + (alt || "picture")}><img src={src} alt={alt} loading="lazy" /></button>
+      {open && <DocViewerLazy url={src} name={alt || "Picture"} kind="image" onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+function DocViewerLazy(props) {
+  return <Suspense fallback={null}><DocViewer {...props} /></Suspense>
+}
+
+export default function MessageList({ state, wid, respond, onPreview, onRewind, onEdit, onFork, onRegenerate, onApprovePlan, onRevisePlan, readOnly }) {
   const { messages, live } = state
   const results = {}
   let lastPlanId = null
@@ -186,10 +227,10 @@ export default function MessageList({ state, wid, respond, onPreview, onRewind, 
       {turns.map((turn, index) => {
         const lastTurn = index === turns.length - 1
         return (
-          <div className="fw-turn" key={turn.user ? turn.user.id : "t" + index}>
-            {turn.user && <UserMessage message={turn.user} wid={wid} onRewind={onRewind} canRewind={!live.running} />}
+          <div className="fw-turn" key={"turn" + index}>
+            {turn.user && <UserMessage message={turn.user} wid={wid} onRewind={onRewind} onEdit={onEdit} onFork={onFork} canRewind={!live.running && !readOnly} />}
             <div className="fw-msg-assistant">
-              <Flow nodes={buildFlow(turn.items)} results={results} ctx={{ live, wid, respond, onPreview, lastPlanId, chat: state.chat, onApprovePlan, onRevisePlan }} />
+              <Flow nodes={buildFlow(turn.items)} results={results} ctx={{ live, wid, respond, onPreview, lastPlanId, chat: state.chat, onApprovePlan, onRevisePlan, lastTurn }} />
               {lastTurn && live.running && (
                 <div className="fw-assistant-step fw-live">
                   <Reasoning text={live.reasoning} live />
@@ -197,12 +238,15 @@ export default function MessageList({ state, wid, respond, onPreview, onRewind, 
                   {drafts.map((draft, i) => <DraftCall key={i} draft={draft} />)}
                 </div>
               )}
-              {lastTurn && live.running && Object.keys(live.waiting).length === 0 && <ProcessLine state={state} drafts={drafts} results={results} />}
-              {lastTurn && !live.running && lastText(turn.items) && (
-                <div className="fw-msg-actions fw-left">
+              {lastTurn && live.running && Object.keys(live.waiting).length === 0 && !(live.reasoning && !live.text && drafts.length === 0 && !anyRunning(live.tools, results)) && <ProcessLine state={state} drafts={drafts} results={results} />}
+              {!live.running && lastText(turn.items) && (lastTurn || !readOnly) && (
+                <div className={"fw-msg-actions fw-left" + (lastTurn ? "" : " fw-hover-only")}>
                   {lastTurn && <span className="fw-done-mark" title="Forkwise"><ForkMark size={18} /></span>}
                   <CopyButton text={lastText(turn.items)} />
-                  <RateButtons />
+                  {!readOnly && lastTurn && onRegenerate && turn.user && (
+                    <button type="button" className="fw-iconbtn fw-iconbtn-sm" title="Try again: answer this message again" aria-label="Retry" onClick={() => onRegenerate(turn.user)}><RefreshCw size={14} /></button>
+                  )}
+                  {!readOnly && <RateButtons />}
                 </div>
               )}
             </div>

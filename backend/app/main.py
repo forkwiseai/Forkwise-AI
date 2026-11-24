@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app import config, db
 from app import crypto_pay, treasury
-from app.routes import auth, chats, files, settings, preview, terminal, site, billing, google, admin, desktop, connections, schedules, keys, browser, studio, avatar, plugins, providers as provider_routes, voice as voice_routes
+from app.routes import auth, chats, files, settings, preview, terminal, site, billing, google, admin, desktop, connections, schedules, keys, browser, studio, avatar, plugins, share, providers as provider_routes, voice as voice_routes
 from app.agent import sandbox, runs
 
 
@@ -107,3 +107,4 @@ studio.register_routes(app)
 plugins.register_routes(app)
 provider_routes.register_routes(app)
 voice_routes.register_routes(app)
+share.register_routes(app)

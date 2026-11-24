@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import Editor from "@monaco-editor/react"
 import { ChevronRight, Download, File, Folder, FolderOpen, RefreshCw, Save, Trash2 } from "lucide-react"
 import "./monaco"
@@ -6,6 +6,9 @@ import { languageOf } from "./monaco"
 import { api, apiUrl, rawUrl } from "../../../lib/api"
 import { formatSize } from "../ToolCall"
 import { useConfirm } from "../../../dash/kit"
+
+const DocBody = lazy(() => import("../viewer/DocViewer").then((module) => ({ default: module.DocBody })))
+const OFFICE = /\.(pptx|pdf|docx)$/i
 
 function buildTree(items) {
   const root = { name: "", path: "", type: "dir", children: [] }
@@ -149,7 +152,10 @@ export default function FilesPane({ wid, refreshKey, theme, openPath }) {
             {file.binary && file.kind === "image" && <div className="fw-binary-view"><img src={rawUrl(wid, file.path)} alt={file.path} /></div>}
             {file.binary && file.kind === "video" && <div className="fw-binary-view"><video src={rawUrl(wid, file.path)} controls /></div>}
             {file.binary && file.kind === "audio" && <div className="fw-binary-view"><audio src={rawUrl(wid, file.path)} controls /></div>}
-            {file.binary && ["image", "video", "audio"].indexOf(file.kind) === -1 && <div className="fw-empty-small fw-center">This file cannot be shown here. Download it instead.</div>}
+            {file.binary && OFFICE.test(file.path) && (
+              <div className="fw-doc-pane"><Suspense fallback={<div className="fw-empty-small fw-center">Opening…</div>}><DocBody url={rawUrl(wid, file.path)} name={file.path.split("/").pop()} /></Suspense></div>
+            )}
+            {file.binary && ["image", "video", "audio"].indexOf(file.kind) === -1 && !OFFICE.test(file.path) && <div className="fw-empty-small fw-center">This file cannot be shown here. Download it instead.</div>}
             {!file.binary && !file.error && (
               <div className="fw-editor-host" onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save() } }}>
                 <Editor

@@ -12,6 +12,56 @@ import { ConfirmProvider, IconButton, Skeleton } from "../../dash/kit"
 import "../../dash/dash.css"
 import "../../dash/layout.css"
 import "../../dash/pages.css"
+import "../../dash/chat.css"
+import ShareDialog from "../../dash/ShareDialog"
+
+const SB_MIN = 200
+const SB_MAX = 440
+const SB_DEFAULT = 260
+
+function readSidebarWidth() {
+  try {
+    const value = Number(localStorage.getItem("fw-sb-w"))
+    return value >= SB_MIN && value <= SB_MAX ? value : SB_DEFAULT
+  } catch (problem) {
+    return SB_DEFAULT
+  }
+}
+
+// The chat list can be dragged wider or narrower, like the workspace panel on the right. Double-click resets.
+function SidebarHandle({ width, setWidth }) {
+  function start(event) {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = width
+    let latest = width
+    function move(e) {
+      latest = Math.max(SB_MIN, Math.min(SB_MAX, startWidth + (e.clientX - startX)))
+      setWidth(latest)
+    }
+    function up() {
+      document.removeEventListener("pointermove", move)
+      document.removeEventListener("pointerup", up)
+      document.body.classList.remove("dragging", "dragging-sb")
+      try { localStorage.setItem("fw-sb-w", String(latest)) } catch (problem) { /* storage blocked */ }
+    }
+    document.body.classList.add("dragging", "dragging-sb")
+    document.addEventListener("pointermove", move)
+    document.addEventListener("pointerup", up)
+  }
+  function reset() {
+    setWidth(SB_DEFAULT)
+    try { localStorage.setItem("fw-sb-w", String(SB_DEFAULT)) } catch (problem) { /* storage blocked */ }
+  }
+  function key(event) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+    event.preventDefault()
+    const next = Math.max(SB_MIN, Math.min(SB_MAX, width + (event.key === "ArrowRight" ? 16 : -16)))
+    setWidth(next)
+    try { localStorage.setItem("fw-sb-w", String(next)) } catch (problem) { /* storage blocked */ }
+  }
+  return <div className="fw-sb-handle" role="separator" aria-orientation="vertical" aria-label="Resize the chat list" aria-valuemin={SB_MIN} aria-valuemax={SB_MAX} aria-valuenow={width} tabIndex={0} title="Drag to resize, double-click to reset" onPointerDown={start} onDoubleClick={reset} onKeyDown={key} />
+}
 
 function readCollapsed() {
   try {
@@ -44,6 +94,7 @@ export default function AppShell() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sbWidth, setSbWidth] = useState(readSidebarWidth)
   const inSettings = location.pathname.indexOf("/app/settings") === 0
 
   useEffect(() => {
@@ -105,8 +156,9 @@ export default function AppShell() {
 
   return (
     <ConfirmProvider>
-      <div className={"fw fw-app" + (collapsed ? " is-collapsed" : "") + (inSettings ? " is-settings" : "")}>
+      <div className={"fw fw-app" + (collapsed ? " is-collapsed" : "") + (inSettings ? " is-settings" : "")} style={{ "--sb-w": sbWidth + "px" }}>
         {!inSettings && <Sidebar onCollapse={() => setCollapsed(true)} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />}
+        {!inSettings && !collapsed && <SidebarHandle width={sbWidth} setWidth={setSbWidth} />}
         <main className="fw-main">
           {!inSettings && (
             <div className="fw-mobilebar">
@@ -123,6 +175,7 @@ export default function AppShell() {
         </main>
       </div>
       <Search />
+      <ShareDialog />
       <Toasts />
     </ConfirmProvider>
   )

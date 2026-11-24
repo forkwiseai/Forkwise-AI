@@ -60,7 +60,13 @@ AUDIT = r"""
   const media = document.querySelectorAll('img, canvas, svg, video').length;
   const words = (document.body ? document.body.innerText : '').trim().length;
   const wide = document.scrollingElement ? document.scrollingElement.scrollWidth : 0;
-  return {covered, checked, colors, images, media, words, wide, width: W};
+  const pick = sel => Array.from(document.querySelectorAll(sel)).filter(vis);
+  const head = pick('header, [role=banner], body > nav, #root > nav, #app > nav')[0];
+  const foot = pick('footer, [role=contentinfo]').slice(-1)[0];
+  let gap = null;
+  if (head && foot && !head.contains(foot) && !foot.contains(head)) gap = Math.round(foot.getBoundingClientRect().top - head.getBoundingClientRect().bottom);
+  const links = Array.from(new Set(Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href')).filter(h => h && h.startsWith('/') && !h.startsWith('//') && !h.startsWith('/api') && !/\.(png|jpe?g|svg|pdf|zip)$/i.test(h)))).slice(0, 40);
+  return {covered, checked, colors, images, media, words, wide, width: W, height: H, gap, links};
 }
 """
 
@@ -84,6 +90,9 @@ def judge(width, data):
     if bad:
         bad.sort()
         found.append(where + str(len(bad)) + " text block(s) are almost invisible against their background (contrast " + str(bad[0][0]) + ":1, readable text needs at least 4.5:1), e.g. \"" + bad[0][1] + "\".")
+    gap = data.get("gap")
+    if gap is not None and gap < 0.2 * data.get("height", 800):
+        found.append(where + "the main content is missing or collapsed: the footer starts " + str(gap) + " px below the header. The page body between them is empty, so header and footer touch. Check that the route renders its page component inside the layout (React Router <Outlet/>), and that the main area has content or min-height: calc(100vh - header - footer).")
     if width < 600 and data["wide"] > data["width"] + 2:
         found.append(where + "the page is " + str(data["wide"]) + " px wide on a " + str(data["width"]) + " px phone screen, so it scrolls sideways. Find the element wider than the screen.")
     return found
@@ -120,9 +129,49 @@ def check(url, player):
                 if failed:
                     problems.append("Files of " + url + " are missing: " + "; ".join(failed[:4]))
             problems.extend(url + " " + item for item in judge(width, data))
+            if width == WIDTHS[0]:
+                problems.extend(check_links(browser, url, data.get("links") or [], width))
     finally:
         browser.close()
     return problems
+
+
+MAX_LINKS = 8
+
+
+def check_links(browser, url, links, width):
+    """Opens the site's own pages linked from the first page (login, signup, products...) and judges each one.
+    A site is more than its home page: a route that renders nothing between header and footer is a common bug."""
+    from urllib.parse import urljoin, urlparse
+    found = []
+    seen = {urlparse(url).path or "/"}
+    for href in links:
+        target = urljoin(url, href)
+        path = urlparse(target).path or "/"
+        if path in seen:
+            continue
+        seen.add(path)
+        if len(seen) > MAX_LINKS + 1:
+            break
+        page = browser.new_page(viewport={"width": width, "height": 800})
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)[:200]))
+        try:
+            response = page.goto(target, wait_until="networkidle", timeout=20000)
+            if response is not None and response.status >= 400:
+                found.append(target + " answers HTTP " + str(response.status) + " (linked from the home page).")
+                continue
+            page.wait_for_timeout(400)
+            data = page.evaluate(AUDIT)
+        except Exception as problem:
+            found.append(target + " did not load: " + str(problem)[:160])
+            continue
+        finally:
+            page.close()
+        if errors:
+            found.append("JavaScript error on " + target + ": " + errors[0])
+        found.extend(target + " " + item for item in judge(width, data))
+    return found
 
 
 def main(urls):

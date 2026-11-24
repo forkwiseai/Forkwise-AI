@@ -3,6 +3,7 @@ import { AlertTriangle, Bot, Brain, Check, ChevronDown, ChevronRight, FilePen, G
 
 const CAT_ICON = { explore: Search, edit: FilePen, run: TerminalSquare, browse: Globe, computer: Laptop, github: Github, gmail: Mail, google: Globe, connector: Plug, ability: Sparkles, agent: Bot, other: Wrench }
 import Markdown from "./Markdown"
+import Collapse from "./Collapse"
 import ForkMark, { markMode } from "./ForkMark"
 import WaveText from "./WaveText"
 import { useSettledText } from "../../lib/smooth"
@@ -273,11 +274,31 @@ function summarize(nodes) {
 
 function StepThought({ text }) {
   const [open, setOpen] = useState(false)
-  const long = text.length > 220
+  const clean = String(text || "").trim()
+  const long = clean.length > 320 || clean.split("\n").length > 4
   return (
-    <button type="button" className={"fw-step fw-step-thought" + (open ? " fw-open" : "")} onClick={() => long && setOpen(!open)} disabled={!long}>
-      <span dir="auto">{open || !long ? text : text.slice(0, 220).trim() + "…"}</span>
-    </button>
+    <div className="tl-item tl-thought">
+      <span className="tl-dot"><Brain size={11} /></span>
+      <div className="tl-main">
+        <div className="tl-label">Thought</div>
+        <div className={"tl-thought-text" + (long && !open ? " is-clamped" : "")} dir="auto">{clean}</div>
+        {long && <button type="button" className="tl-more" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Show less" : "Show more"}</button>}
+      </div>
+    </div>
+  )
+}
+
+function StepCall({ call, results, ctx }) {
+  const status = statusOf([call], results, ctx.live, ctx.live.waiting)
+  const info = describe(call.function.name, parse(call.function.arguments), (results[call.id] && results[call.id].meta) || {})
+  const Icon = info.icon || Wrench
+  return (
+    <div className={"tl-item tl-call is-" + status}>
+      <span className="tl-dot">
+        {status === "running" ? <ForkMark size={12} active mode={markMode(call.function.name)} /> : status === "failed" ? <X size={11} /> : status === "waiting" ? <span className="tl-bang">!</span> : <Icon size={11} />}
+      </span>
+      <div className="tl-main"><FlowCall call={call} results={results} ctx={ctx} /></div>
+    </div>
   )
 }
 
@@ -287,33 +308,37 @@ function Steps({ nodes, results, ctx }) {
     if (node.type === "group") calls.push(...node.calls)
     if (node.type === "agent") calls.push(node.call)
   }
-  const status = calls.length ? statusOf(calls, results, ctx.live, ctx.live.waiting) : "done"
+  const status = calls.length ? statusOf(calls, results, ctx.live, ctx.live.waiting) : (ctx.live.running && ctx.lastTurn ? "running" : "done")
   const busy = status === "running" || status === "waiting"
   const [open, setOpen] = useState(null)
   const expanded = open === null ? busy || status === "failed" : open
   const totals = diffTotals(calls, results)
+  const text = summarize(nodes)
   return (
-    <div className={"fw-steps-wrap fw-" + status}>
-      <button type="button" className="fw-steps-head" onClick={() => setOpen(!expanded)} aria-expanded={expanded}>
-        {busy && <ForkMark size={15} active />}
-        <span>{busy ? <WaveText text={summarize(nodes)} /> : summarize(nodes)}</span>
+    <div className={"tl is-" + status + (expanded ? " is-open" : "")}>
+      <button type="button" className="tl-head" onClick={() => setOpen(!expanded)} aria-expanded={expanded}>
+        <span className="tl-head-icon">
+          {busy ? <ForkMark size={15} active /> : status === "failed" ? <AlertTriangle size={14} /> : <Check size={14} />}
+        </span>
+        <span className="tl-head-text">{busy ? <WaveText text={text} /> : text}</span>
         {totals && <span className="fw-tool-diffstat"><span className="fw-add">+{totals.added}</span><span className="fw-del">−{totals.removed}</span></span>}
-        <ChevronDown size={14} className={"fw-steps-chev" + (expanded ? " fw-open" : "")} />
+        {calls.length > 1 && <span className="tl-count">{calls.length} steps</span>}
+        <ChevronDown size={14} className={"tl-chev" + (expanded ? " is-open" : "")} />
       </button>
-      {expanded && (
-        <div className="fw-steps-card">
+      <Collapse open={expanded}>
+        <div className="tl-list">
           {nodes.map((node) => {
             if (node.type === "thought") return <StepThought key={node.key} text={node.text} />
-            if (node.type === "agent") return <div key={node.key} className="fw-step"><FlowCall call={node.call} results={results} ctx={ctx} /></div>
+            if (node.type === "agent") return <StepCall key={node.key} call={node.call} results={results} ctx={ctx} />
             return (
-              <div key={node.key} className="fw-step-group">
-                {node.thoughts.map((text, index) => <StepThought key={index} text={text} />)}
-                {node.calls.map((call) => <div key={call.id} className="fw-step"><FlowCall call={call} results={results} ctx={ctx} /></div>)}
+              <div key={node.key} className="tl-group">
+                {node.thoughts.map((thought, index) => <StepThought key={index} text={thought} />)}
+                {node.calls.map((call) => <StepCall key={call.id} call={call} results={results} ctx={ctx} />)}
               </div>
             )
           })}
         </div>
-      )}
+      </Collapse>
     </div>
   )
 }
@@ -333,6 +358,7 @@ export default function Flow({ nodes, results, ctx }) {
       blocks.push(node)
     }
   }
+  if (blocks.length === 0) return null
   return (
     <div className="fw-flow">
       {blocks.map((node) => {

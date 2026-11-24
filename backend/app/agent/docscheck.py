@@ -81,6 +81,37 @@ def bounds(shape):
     return (int(shape.left), int(shape.top), int(shape.left + shape.width), int(shape.top + shape.height))
 
 
+SLIDE_ORDER = ["cSld", "clrMapOvr", "transition", "timing", "extLst"]
+
+
+def slide_xml_problems(number, xml):
+    """Structure errors that make PowerPoint refuse the file or 'repair' it (and drop the animations).
+    The schema (ECMA-376 CT_Slide) fixes the order cSld, clrMapOvr, transition, timing, extLst; every animation
+    target spid must be a shape on the slide; shape ids and timing node ids must be unique."""
+    found = []
+    names = [etree_local(child) for child in xml]
+    ranks = [SLIDE_ORDER.index(name) for name in names if name in SLIDE_ORDER]
+    if ranks != sorted(ranks) or any(names.count(name) > 1 for name in SLIDE_ORDER):
+        found.append("Slide " + str(number) + ": the slide XML elements are in the wrong order (" + ", ".join(names) + "). PowerPoint requires exactly cSld, clrMapOvr, transition, timing, extLst, in that order, each at most once, or it refuses to open the file. Insert p:transition right after p:clrMapOvr and p:timing right after p:transition.")
+    shape_ids = [element.get("id") for element in xml.iter() if etree_local(element) == "cNvPr"]
+    duplicates = sorted({item for item in shape_ids if shape_ids.count(item) > 1})
+    if duplicates:
+        found.append("Slide " + str(number) + ": several shapes share the id " + ", ".join(duplicates) + ". Each p:cNvPr id must be unique on a slide.")
+    targets = {element.get("spid") for element in xml.iter() if etree_local(element) == "spTgt"}
+    missing = sorted(item for item in targets if item not in shape_ids)
+    if missing:
+        found.append("Slide " + str(number) + ": animations point at shape id(s) " + ", ".join(missing) + " that are not on the slide, so PowerPoint drops them. Use the id of the shape's own p:cNvPr.")
+    node_ids = [element.get("id") for element in xml.iter() if etree_local(element) == "cTn"]
+    if len(node_ids) != len(set(node_ids)):
+        found.append("Slide " + str(number) + ": the animation timing nodes (p:cTn) reuse ids. Number them 1, 2, 3... uniquely per slide.")
+    return found
+
+
+def etree_local(element):
+    tag = element.tag if isinstance(element.tag, str) else ""
+    return tag.split("}", 1)[-1]
+
+
 def pptx_problems(path, wants_animation=False):
     from lxml import etree
     from pptx import Presentation
@@ -94,6 +125,7 @@ def pptx_problems(path, wants_animation=False):
         raw = etree.tostring(xml).decode("utf-8", "ignore")
         transitions += raw.count("<p:transition")
         timings += raw.count("<p:timing")
+        problems.extend(slide_xml_problems(number, xml))
         shapes = list(slide.shapes)
         for index, shape in enumerate(shapes):
             text = shape.text_frame.text.strip() if shape.has_text_frame else ""
@@ -111,7 +143,7 @@ def pptx_problems(path, wants_animation=False):
             if inside < 0.8:
                 problems.append("Slide " + str(number) + ": the text \"" + text[:40] + "\" sits " + str(round((1 - inside) * 100)) + "% outside the slide.")
     if wants_animation and transitions + timings == 0:
-        problems.append("The user asked for animation, but the file has no slide transitions and no animations (0 of " + str(len(prs.slides)) + " slides have one). Add a real transition to every slide, for example by appending <p:transition spd=\"med\"><p:fade/></p:transition> to each slide element (before p:timing if present), and say honestly which animations were added.")
+        problems.append("The user asked for animation, but the file has no slide transitions and no animations (0 of " + str(len(prs.slides)) + " slides have one). Add a real transition to every slide (p:transition goes right after p:clrMapOvr) and entrance animations in p:timing, for example with the deck helper: python3 /opt/forkwise/deckkit.py --help, and say honestly which animations were added.")
     return problems
 
 

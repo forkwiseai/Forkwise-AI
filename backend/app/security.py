@@ -30,6 +30,7 @@ EVENT_TEXT = {
     "password_reset": "Password reset by email",
     "email_changed": "Email address changed",
     "sessions_revoked": "Signed out of other devices",
+    "usage_reset": "Usage meters reset",
     "session_revoked": "Signed out of a device",
     "delete_requested": "Account deletion scheduled",
     "delete_cancelled": "Account deletion cancelled",

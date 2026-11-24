@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react"
 import { api, openEvents } from "./api"
 
-const emptyLive = {
+export const emptyLive = {
   running: false,
   runId: null,
   seq: 0,
@@ -69,7 +69,8 @@ function applyEvent(state, event) {
   if (kind === "start") {
     live.running = true
     live.runId = event.run_id
-    const messages = state.messages.map((message) => (message.temp ? { ...message, id: event.message_id, temp: false } : message))
+    // clientKey keeps the React key stable when the temporary id is replaced, so the bubble doesn't re-mount.
+    const messages = state.messages.map((message) => (message.temp ? { ...message, id: event.message_id, temp: false, clientKey: message.clientKey || message.id } : message))
     return { ...state, messages, live }
   }
   if (kind === "checkpoint") return { ...state, checkpoint: event.commit, live }
@@ -240,7 +241,7 @@ export function useChat(chatId, handlers) {
     const options = extra || {}
     const running = state.live.running
     if (!running) {
-      dispatch({ type: "optimistic", message: { id: tempId, temp: true, role: "user", content, meta: { ...(options.attachments && options.attachments.length ? { attachments: options.attachments } : {}), ...(options.voice ? { voice: true } : {}) } } })
+      dispatch({ type: "optimistic", message: { id: tempId, clientKey: tempId, temp: true, role: "user", content, meta: { ...(options.attachments && options.attachments.length ? { attachments: options.attachments } : {}), ...(options.voice ? { voice: true } : {}) } } })
     }
     try {
       const data = await api.post("/api/chats/" + chatId + "/messages", { content, attachments: options.attachments || [], model: options.model || "", mode: options.mode || "", effort: options.effort || "", skills: options.skills || [], voice: Boolean(options.voice) })

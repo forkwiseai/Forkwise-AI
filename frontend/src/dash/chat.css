@@ -1,0 +1,234 @@
+/* Chat, process line and workspace: motion and layout (loaded after layout.css, so it wins ties).
+   Motion uses one curve (--ease-out-quint) and three durations: 160 ms for small state changes, 260 ms for
+   things that open or close, 320 ms for panels. Everything respects prefers-reduced-motion at the bottom. */
+
+.fw { --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 160ms; --t-open: 260ms; --t-panel: 320ms; }
+
+/* ---------- Collapse: animated open / close ---------- */
+.fw .fw-collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--collapse-ms, 260ms) var(--ease-out-quint), opacity var(--collapse-ms, 260ms) ease !important; }
+.fw .fw-collapse.is-open { grid-template-rows: 1fr; opacity: 1; }
+.fw .fw-collapse-inner { min-height: 0; overflow: hidden; }
+
+/* ---------- Timeline of steps (the process line) ---------- */
+.fw .tl { margin: 2px 0 6px; }
+.fw .tl-head { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 30px; padding: 0 10px 0 6px; margin-left: -6px; border-radius: 9px; font-size: 13.5px; color: var(--tx-2); text-align: start; transition: background-color var(--t-fast) ease !important; }
+.fw .tl-head:hover { background: var(--hover); color: var(--tx-2); }
+.fw .tl-head:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+.fw .tl-head-icon { flex: none; display: grid; place-items: center; width: 18px; height: 18px; color: var(--tx-3); }
+.fw .tl.is-done .tl-head-icon { color: var(--ok); }
+.fw .tl.is-failed .tl-head-icon, .fw .tl.is-failed .tl-head-text { color: var(--red); }
+.fw .tl-head-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fw .tl-count { flex: none; font-size: 12px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+.fw .tl-chev { flex: none; color: var(--tx-4); transition: transform var(--t-open) var(--ease-out-quint) !important; }
+.fw .tl-chev.is-open { transform: rotate(180deg); }
+
+.fw .tl-list { position: relative; display: grid; gap: 0; padding: 6px 0 4px; }
+.fw .tl-list::before { content: ""; position: absolute; left: 8.5px; top: 16px; bottom: 16px; width: 1px; background: var(--line-2); }
+.fw .tl-group { display: contents; }
+.fw .tl-item { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); column-gap: 12px; align-items: start; padding: 2px 0; animation: tl-in var(--t-open) var(--ease-out-quint) both !important; }
+@keyframes tl-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.fw .tl-dot { position: relative; z-index: 1; display: grid; place-items: center; width: 18px; height: 18px; margin-top: 6px; border-radius: 50%; background: var(--bg-1); border: 1px solid var(--line-2); color: var(--tx-3); }
+.fw .tl-call.is-running .tl-dot { border-color: transparent; background: var(--bg-1); color: var(--tx); }
+.fw .tl-call.is-failed .tl-dot { border-color: color-mix(in srgb, var(--red) 50%, transparent); color: var(--red); background: var(--red-bg); }
+.fw .tl-call.is-waiting .tl-dot { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber); }
+.fw .tl-bang { font-size: 11px; font-weight: 700; line-height: 1; }
+.fw .tl-main { min-width: 0; }
+
+/* Tool rows inside the timeline: the rail carries the icon and status, the row carries the words. */
+.fw .tl .fw-tool-head { min-height: 30px; margin: 0; padding: 4px 8px; margin-left: -8px; width: calc(100% + 8px); border-radius: 8px; gap: 8px; }
+.fw .tl .fw-tool-head:hover { background: var(--hover); }
+.fw .tl .fw-tool-icon, .fw .tl .fw-tool-status { display: none; }
+.fw .tl .fw-tool-verb { font-weight: 400; color: var(--tx-3); font-size: 13.5px; }
+.fw .tl .fw-tool-target { font-family: var(--font); font-size: 13.5px; color: var(--tx-2); }
+.fw .tl .fw-tool-target.fw-mono { font-family: var(--mono); font-size: 12.5px; }
+.fw .tl .fw-tool.fw-failed .fw-tool-verb { color: var(--red); }
+.fw .tl .fw-tool-chevron { color: var(--tx-4); opacity: 0; transition: opacity var(--t-fast), transform var(--t-open) var(--ease-out-quint) !important; }
+.fw .tl .fw-tool-head:hover .fw-tool-chevron, .fw .tl .fw-tool.fw-open .fw-tool-chevron { opacity: 1; }
+.fw .tl .fw-tool-body { margin: 4px 0 8px; }
+.fw .tl .fw-tool-inline { margin: 2px 0 6px; }
+.fw .tl .fw-shot-thumb { margin: 2px 0 6px; }
+
+/* A thought: quiet text, clamped to three lines with a soft fade. It never changes colour on hover. */
+.fw .tl-thought .tl-dot { border-style: dashed; }
+.fw .tl-label { padding-top: 6px; font-size: 12px; font-weight: 500; color: var(--tx-3); letter-spacing: 0.01em; }
+.fw .tl-thought-text { margin-top: 2px; font-size: 13.5px; line-height: 1.62; color: var(--tx-3); white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.fw .tl-thought-text.is-clamped { max-height: calc(1.62em * 3); overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+.fw .tl-more { margin: 2px 0 6px; padding: 0; font-size: 12.5px; color: var(--tx-3); text-decoration: underline; text-decoration-color: var(--line-3); text-underline-offset: 3px; }
+.fw .tl-more:hover { color: var(--tx-2); }
+
+/* ---------- Live thinking ---------- */
+.fw .rs { margin: 2px 0 4px; }
+.fw .rs-head { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 6px; margin-left: -6px; border-radius: 9px; font-size: 13.5px; color: var(--tx-3); transition: background-color var(--t-fast) ease !important; }
+.fw .rs-head:hover { background: var(--hover); color: var(--tx-3); }
+.fw .rs-time { font-size: 12px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+.fw .rs-chev { color: var(--tx-4); transition: transform var(--t-open) var(--ease-out-quint) !important; }
+.fw .rs-chev.is-open { transform: rotate(180deg); }
+.fw .rs-body { margin: 2px 0 4px 4px; padding: 2px 0 2px 16px; border-left: 1px solid var(--line-2); font-size: 13.5px; line-height: 1.62; color: var(--tx-3); white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; max-height: 84px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 40%); mask-image: linear-gradient(to bottom, transparent 0, #000 40%); transition: max-height var(--t-open) var(--ease-out-quint) !important; }
+.fw .rs-body.is-open { max-height: 420px; overflow-y: auto; -webkit-mask-image: none; mask-image: none; }
+.fw .rs:not(.is-live) .rs-body:not(.is-open) { display: none; }
+
+/* ---------- Process line: what is happening right now ---------- */
+.fw .pl { display: flex; align-items: center; gap: 10px; height: 32px; margin-top: 4px; animation: tl-in var(--t-open) var(--ease-out-quint) both !important; }
+.fw .pl-mark { flex: none; display: grid; place-items: center; width: 20px; height: 20px; }
+.fw .pl-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13.5px; animation: pl-swap var(--t-open) var(--ease-out-quint) both !important; }
+@keyframes pl-swap { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.fw .pl-time { flex: none; font-size: 12px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+
+/* ---------- Messages ---------- */
+.fw .fw-msg-user.is-new { animation: msg-send 380ms var(--ease-out-quint) both !important; transform-origin: 100% 100%; }
+@keyframes msg-send { from { opacity: 0; transform: translateY(14px) scale(0.97); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
+.fw .fw-msg-user-bubble { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset; }
+.fw .fw-msg-actions .fw-iconbtn { transition: color var(--t-fast), background-color var(--t-fast) !important; }
+.fw .fw-msg-actions.fw-hover-only { opacity: 0; }
+.fw .fw-turn:hover .fw-msg-actions.fw-hover-only { opacity: 1; }
+.fw .fw-msg-assistant .fw-flow-say { animation: tl-in var(--t-open) var(--ease-out-quint) both !important; }
+.fw .fw-zoomable { display: block; padding: 0; border-radius: 12px; overflow: hidden; cursor: zoom-in; }
+.fw .fw-zoomable img { display: block; width: 132px; height: 132px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); transition: transform var(--t-fast) var(--ease-out-quint) !important; }
+.fw .fw-zoomable:hover img { transform: scale(1.03); }
+.fw .fw-md .fw-md-img { display: block; max-width: min(100%, 560px); max-height: 420px; width: auto; height: auto; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); }
+
+/* Files the agent shares: a compact card. Pictures are capped so one never fills half the screen. */
+.fw .fw-file-card { display: grid; gap: 8px; width: fit-content; max-width: min(100%, 560px); padding: 8px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line-2); animation: tl-in var(--t-open) var(--ease-out-quint) both !important; }
+.fw .fw-file-card.fw-file-other, .fw .fw-file-card.fw-file-pptx, .fw .fw-file-card.fw-file-pdf, .fw .fw-file-card.fw-file-docx { width: min(100%, 520px); }
+.fw .fw-file-media { display: block; padding: 0; border-radius: 10px; overflow: hidden; cursor: zoom-in; background: var(--bg-0); }
+.fw .fw-file-media img { display: block; max-width: 100%; width: auto; max-height: 340px; object-fit: contain; margin: 0 auto; transition: transform var(--t-open) var(--ease-out-quint) !important; }
+.fw .fw-file-media:hover img { transform: scale(1.015); }
+.fw .fw-file-video { display: block; max-width: 100%; max-height: 360px; border-radius: 10px; }
+.fw .fw-file-card-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 2px 4px; }
+.fw .fw-file-badge { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--bg-3); color: var(--tx-2); }
+.fw .fw-file-badge-pptx { background: color-mix(in srgb, #d24726 18%, transparent); color: #f08a68; }
+.fw .fw-file-badge-pdf { background: color-mix(in srgb, #e5484d 16%, transparent); color: #f07a7e; }
+.fw .fw-file-badge-docx { background: color-mix(in srgb, #2b6fd6 18%, transparent); color: #78a8f0; }
+.fw .fw-file-card-name { flex: 1; min-width: 0; }
+.fw .fw-file-card-row .fw-btn { flex: none; }
+
+/* ---------- Scroll to latest ---------- */
+.fw .fw-tobottom { opacity: 0; pointer-events: none; transform: translate(-50%, 8px) scale(0.9); transition: opacity var(--t-fast) ease, transform var(--t-open) var(--ease-out-quint) !important; }
+.fw .fw-tobottom.is-shown { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+.fw .fw-tobottom:hover { background: var(--bg-4); }
+.fw .fw-tobottom-live { position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-3); }
+
+/* ---------- Header share button ---------- */
+.fw .fw-share-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--line-2); font-size: 13px; font-weight: 500; color: var(--tx); transition: background-color var(--t-fast), border-color var(--t-fast) !important; }
+.fw .fw-share-btn:hover { background: var(--hover); border-color: var(--line-3); }
+
+/* ---------- Workspace panel: slides in and out ---------- */
+.fw .fw-panel { width: 0; overflow: hidden; transition: width var(--t-panel) var(--ease-out-quint) !important; }
+.fw .fw-panel.is-open { width: var(--panel-w); }
+.fw .fw-panel-inner { flex: none; height: 100%; display: flex; min-width: 0; opacity: 0; transform: translateX(24px); transition: opacity 220ms ease, transform var(--t-panel) var(--ease-out-quint) !important; }
+.fw .fw-panel.is-open .fw-panel-inner { opacity: 1; transform: none; }
+.fw .fw-panel-handle { position: relative; width: 1px; background: var(--line); opacity: 0; transition: opacity var(--t-panel) ease, background-color var(--t-fast) !important; }
+.fw .fw-panel-handle.is-open { opacity: 1; }
+.fw .fw-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; cursor: col-resize; z-index: 5; }
+.fw .fw-panel-handle:hover, body.dragging .fw-panel-handle { background: var(--accent); }
+body.dragging .fw .fw-panel, body.dragging .fw .fw-panel-inner, body.dragging .fw .fw-sb { transition: none !important; }
+.fw .fw-pane-anim { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: pane-in 220ms var(--ease-out-quint) both !important; }
+.fw .fw-pane-anim > * { flex: 1; min-height: 0; }
+@keyframes pane-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fw .fw-ws-tab { transition: background-color var(--t-fast), color var(--t-fast) !important; }
+.fw .fw-doc-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---------- Sidebar: resizable and animated ---------- */
+@media (min-width: 861px) {
+  .fw .fw-sb { width: var(--sb-w, 260px); overflow: hidden; transition: width var(--t-panel) var(--ease-out-quint), opacity 200ms ease !important; }
+  .fw .fw-sb > * { min-width: calc(var(--sb-w, 260px) - 0px); }
+  .fw.is-collapsed .fw-sb { display: flex; width: 0; opacity: 0; pointer-events: none; }
+  .fw .fw-sb-handle { position: relative; flex: none; width: 0; z-index: 7; }
+  .fw .fw-sb-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; cursor: col-resize; }
+  .fw .fw-sb-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background-color var(--t-fast) !important; }
+  .fw .fw-sb-handle:hover::before, .fw .fw-sb-handle:focus-visible::before, body.dragging-sb .fw .fw-sb-handle::before { background: var(--accent); }
+  .fw .fw-sb-handle:focus { outline: none; }
+}
+@media (max-width: 860px) {
+  .fw .fw-sb-handle { display: none; }
+  .fw .fw-sb { transform: translateX(-100%); transition: transform var(--t-panel) var(--ease-out-quint) !important; display: flex !important; visibility: hidden; }
+  .fw .fw-sb.is-open { transform: none; visibility: visible; }
+  .fw .fw-scrim { display: block !important; position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.55); opacity: 0; pointer-events: none; transition: opacity var(--t-panel) ease !important; }
+  .fw .fw-scrim.is-on { opacity: 1; pointer-events: auto; }
+}
+
+/* ---------- Responsive chat ---------- */
+.fw .fw-chat-inner { width: 100%; }
+/* Grid tracks default to "auto", which grows to the widest child (a 1600 px picture, a long code line) and pushes
+   the whole answer off a phone screen. minmax(0, 1fr) keeps every column inside the chat width. */
+.fw .fw-messages, .fw .fw-turn, .fw .fw-msg-assistant, .fw .fw-flow, .fw .fw-assistant-step, .fw .tl-list { grid-template-columns: minmax(0, 1fr); }
+.fw .fw-flow-block, .fw .fw-flow-say, .fw .tl, .fw .fw-tool { min-width: 0; max-width: 100%; }
+.fw .fw-md pre, .fw .fw-tool-pre, .fw .fw-diff { max-width: 100%; }
+.fw .fw-md table { min-width: 0; }
+@media (max-width: 1100px) {
+  .fw .fw-chat-inner, .fw .fw-chat-bottom { padding-left: 20px; padding-right: 20px; }
+}
+@media (max-width: 860px) {
+  .fw .fw-chat-head { height: 48px; gap: 4px; }
+  .fw .fw-chat-title { flex: 1; min-width: 0; }
+  .fw .fw-title-btn { max-width: 100%; }
+  .fw .fw-crumb { display: none; }
+  .fw .fw-share-btn span { display: none; }
+  .fw .fw-share-btn { width: 32px; padding: 0; justify-content: center; }
+  .fw .fw-steps > span:not(.fw-steps-bar) { display: none; }
+  .fw .fw-chat-inner { padding: 16px 14px 24px; }
+  .fw .fw-chat-bottom { padding: 0 10px calc(10px + env(safe-area-inset-bottom)); }
+  .fw .fw-turn { gap: 12px; padding-bottom: 20px; }
+  .fw .fw-msg-user-bubble { max-width: 88%; padding: 9px 13px; }
+  .fw .fw-md { font-size: 15px; }
+  .fw .fw-run-bar { gap: 8px; padding-left: 10px; }
+  .fw .fw-run-bar .fw-run-context, .fw .fw-run-bar .fw-run-meta:nth-of-type(2) { display: none; }
+  .fw .tl .fw-tool-target { font-size: 13px; }
+  .fw .tl-count { display: none; }
+  .fw .fw-msg-actions { opacity: 1; }
+  .fw .fw-file-card-row { flex-wrap: wrap; }
+  .fw .fw-file-card-name { flex-basis: calc(100% - 50px); }
+  .fw .fw-approval-actions .fw-btn, .fw .fw-plan-actions .fw-btn { flex: 1 1 auto; justify-content: center; }
+  /* The workspace becomes a sheet that slides up over the chat */
+  .fw .fw-panel { position: fixed; inset: 0; z-index: 70; width: 100% !important; transform: translateY(100%); transition: transform var(--t-panel) var(--ease-out-quint) !important; }
+  .fw .fw-panel.is-open { transform: none; }
+  .fw .fw-panel-inner { width: 100% !important; opacity: 1; transform: none; }
+  .fw .fw-workspace-tabs { padding-top: env(safe-area-inset-top); }
+}
+@media (max-width: 480px) {
+  .fw .fw-chat-inner { padding: 12px 10px 20px; }
+  .fw .fw-msg-user-bubble { max-width: 94%; }
+  .fw .fw-md h1 { font-size: 20px; } .fw .fw-md h2 { font-size: 17.5px; }
+  .fw .fw-code-block pre { font-size: 12px; padding: 12px; }
+  .fw .fw-run-bar .fw-run-meta { display: none; }
+}
+
+/* ---------- Share dialog ---------- */
+.fw .fw-share { display: grid; gap: 12px; }
+.fw .fw-share-loading { display: grid; place-items: center; padding: 30px; }
+.fw .fw-share-options { display: grid; gap: 8px; }
+.fw .fw-share-option { display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--line-2); text-align: start; transition: border-color var(--t-fast), background-color var(--t-fast) !important; }
+.fw .fw-share-option:hover:not(:disabled) { background: var(--hover); }
+.fw .fw-share-option.is-on { border-color: var(--accent-line); background: var(--accent-bg); }
+.fw .fw-share-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--bg-3); color: var(--tx-2); }
+.fw .fw-share-option.is-on .fw-share-icon { color: var(--accent); }
+.fw .fw-share-copy { display: grid; gap: 2px; }
+.fw .fw-share-copy strong { font-size: 14px; font-weight: 500; color: var(--tx); }
+.fw .fw-share-copy small { font-size: 12.5px; line-height: 1.45; color: var(--tx-3); }
+.fw .fw-share-radio { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line-3); }
+.fw .fw-share-option.is-on .fw-share-radio { border: 5px solid var(--accent); }
+.fw .fw-share-link { display: flex; gap: 8px; animation: tl-in var(--t-open) var(--ease-out-quint) both !important; }
+.fw .fw-share-link input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-2); font-family: var(--mono); font-size: 12.5px; color: var(--tx); }
+.fw .fw-share-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--tx-3); }
+.fw .fw-share-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.fw .fw-share-note { font-size: 12px; line-height: 1.5; color: var(--tx-4); }
+
+/* ---------- Public shared chat page ---------- */
+.fw.fw-share-page { min-height: 100vh; min-height: 100dvh; background: var(--bg-1); color: var(--tx); }
+.fw .fw-share-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 18px; background: color-mix(in srgb, var(--bg-1) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.fw .fw-share-main { padding-bottom: 60px; }
+.fw .fw-share-intro { padding: 18px 0 22px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.fw .fw-share-intro h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; unicode-bidi: plaintext; }
+.fw .fw-share-intro p { margin-top: 6px; font-size: 13px; color: var(--tx-3); }
+.fw .fw-share-missing { display: grid; justify-items: center; gap: 10px; padding: 18vh 20px; text-align: center; color: var(--tx-2); }
+.fw .fw-share-missing h1 { font-size: 20px; color: var(--tx); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fw .fw-collapse, .fw .fw-panel, .fw .fw-panel-inner, .fw .fw-sb, .fw .fw-tobottom, .fw .tl-chev, .fw .rs-chev, .fw .rs-body { transition: none !important; }
+  .fw .tl-item, .fw .pl, .fw .pl-text, .fw .fw-msg-user.is-new, .fw .fw-pane-anim, .fw .fw-file-card, .fw .fw-flow-say, .fw .fw-share-link { animation: none !important; }
+}
+
+/* Tighter rhythm between a message and its answer; the message's hover actions overlap the gap instead of
+   reserving a whole empty row under every bubble. */
+.fw .fw-turn { gap: 10px; }
+.fw .fw-msg-user .fw-msg-actions { margin-bottom: -10px; }

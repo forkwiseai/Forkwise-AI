@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import {
   BookOpen, Bot, Brain, Camera, Check, ChevronRight, Download, FilePen, FilePlus, FileText, FolderTree, Globe,
   ListChecks, Loader2, MessageCircleQuestion, MonitorPlay, Plug, Search, ShieldQuestion, Sparkles, Square,
   TerminalSquare, Wrench, X, ExternalLink, FileSearch, Laptop, MousePointerClick, Github, Mail, Clipboard, ImageIcon,
-  Keyboard, AppWindow, Move, Clock
+  Keyboard, AppWindow, Move, Clock, Eye, Presentation
 } from "lucide-react"
 import ForkMark, { markMode } from "./ForkMark"
 import WaveText from "./WaveText"
 import Markdown from "./Markdown"
 import { rawUrl } from "../../lib/api"
+import Collapse from "./Collapse"
+
+const DocViewer = lazy(() => import("./viewer/DocViewer"))
 
 const SHOT_TOOLS = ["screenshot", "browser", "computer", "my_browser", "video"]
 
@@ -229,22 +232,50 @@ function SubEvents({ events }) {
   )
 }
 
+const PREVIEWABLE = ["pptx", "pdf", "docx", "image"]
+
+function typeOf(meta) {
+  const name = String(meta.file || "").toLowerCase()
+  if (name.endsWith(".pptx")) return "pptx"
+  if (name.endsWith(".pdf")) return "pdf"
+  if (name.endsWith(".docx")) return "docx"
+  if (meta.kind === "image" || /\.(png|jpe?g|gif|webp|svg|avif)$/.test(name)) return "image"
+  return meta.kind || ""
+}
+
+const TYPE_LABEL = { pptx: "PowerPoint", pdf: "PDF", docx: "Word document", image: "Picture" }
+const TYPE_ICON = { pptx: Presentation, pdf: FileText, docx: FileText }
+
 export function FileCard({ wid, meta }) {
+  const [viewing, setViewing] = useState(false)
   const url = rawUrl(wid, meta.file)
+  const type = typeOf(meta)
+  const name = meta.file.split("/").pop()
+  const Icon = TYPE_ICON[type] || FileText
   return (
-    <div className="fw-file-card">
-      {meta.kind === "image" && <img src={url} alt={meta.file} />}
-      {meta.kind === "video" && <video src={url} controls />}
+    <div className={"fw-file-card fw-file-" + (type || "other")}>
+      {type === "image" && (
+        <button type="button" className="fw-file-media" onClick={() => setViewing(true)} aria-label={"Open " + name}>
+          <img src={url} alt={meta.caption || name} loading="lazy" />
+        </button>
+      )}
+      {meta.kind === "video" && <video className="fw-file-video" src={url} controls />}
       {meta.kind === "audio" && <audio src={url} controls />}
       <div className="fw-file-card-row">
-        <FileText size={18} />
+        <span className={"fw-file-badge fw-file-badge-" + (type || "other")}><Icon size={16} /></span>
         <div className="fw-file-card-name">
-          <strong>{meta.file.split("/").pop()}</strong>
-          <span className="fw-muted">{meta.caption || formatSize(meta.size)}</span>
+          <strong dir="auto">{name}</strong>
+          <span className="fw-muted" dir="auto">{meta.caption || [TYPE_LABEL[type], formatSize(meta.size)].filter(Boolean).join(" · ")}</span>
         </div>
-        {(meta.kind === "pdf" || meta.kind === "html") && <a className="fw-btn fw-btn-secondary fw-btn-sm" href={url} target="_blank" rel="noreferrer">Open</a>}
-        <a className="fw-btn fw-btn-secondary fw-btn-sm" href={rawUrl(wid, meta.file, true)}><Download size={14} />Download</a>
+        {PREVIEWABLE.includes(type) && type !== "image" && <button type="button" className="fw-btn fw-btn-secondary fw-btn-sm" onClick={() => setViewing(true)}><Eye size={14} />{type === "pptx" ? "Present" : "Open"}</button>}
+        {meta.kind === "html" && <a className="fw-btn fw-btn-secondary fw-btn-sm" href={url} target="_blank" rel="noreferrer">Open</a>}
+        <a className="fw-btn fw-btn-ghost fw-btn-sm" href={rawUrl(wid, meta.file, true)} aria-label={"Download " + name}><Download size={14} />Download</a>
       </div>
+      {viewing && (
+        <Suspense fallback={null}>
+          <DocViewer url={url} downloadUrl={rawUrl(wid, meta.file, true)} name={name} kind={type} onClose={() => setViewing(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -416,7 +447,7 @@ export default function ToolCall({ call, result, live, waiting, subs, wid, respo
       {showImage && (
         <button className="fw-shot-thumb" onClick={() => setOpen(true)}><img src={rawUrl(wid, meta.image)} alt="Screenshot" /></button>
       )}
-      {expanded && body && <div className="fw-tool-body">{body}</div>}
+      {body && <Collapse open={expanded}><div className="fw-tool-body">{body}</div></Collapse>}
     </div>
   )
 }

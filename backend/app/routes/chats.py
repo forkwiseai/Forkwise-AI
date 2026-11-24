@@ -290,6 +290,7 @@ async def delete_chat(chat_id: str, request: Request):
         runs.RUNS[active].stop()
     db.execute("DELETE FROM messages WHERE chat_id = ?", (chat_id,))
     db.execute("DELETE FROM runs WHERE chat_id = ?", (chat_id,))
+    db.execute("DELETE FROM chat_shares WHERE chat_id = ?", (chat_id,))
     db.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
     shared = db.one_row("SELECT id FROM projects WHERE workspace_id = ?", (chat["workspace_id"],))
     others = db.one_row("SELECT id FROM chats WHERE workspace_id = ?", (chat["workspace_id"],))

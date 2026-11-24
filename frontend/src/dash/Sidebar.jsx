@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { Blocks, BookOpen, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Code2, Download, ExternalLink, FolderInput, Link2, FolderKanban, Gauge, LogOut, MessageSquare, Moon, MoreHorizontal, PanelLeftClose, Palette, Pencil, Pin, PinOff, Plus, Search, Settings, ShieldCheck, Sparkles, SquarePen, Sun, Trash2, X, Zap } from "lucide-react"
+import { Blocks, BookOpen, GitBranch, Share2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Code2, Download, ExternalLink, FolderInput, Link2, FolderKanban, Gauge, LogOut, MessageSquare, Moon, MoreHorizontal, PanelLeftClose, Palette, Pencil, Pin, PinOff, Plus, Search, Settings, ShieldCheck, Sparkles, SquarePen, Sun, Trash2, X, Zap } from "lucide-react"
 import { useStore } from "../lib/store"
 import { api } from "../lib/api"
 import { LogoMark } from "../components/ui/Logo"
@@ -48,8 +48,12 @@ function groupChats(chats) {
   return groups.filter((group) => group.items.length > 0)
 }
 
+export function openShare(chat) {
+  window.dispatchEvent(new CustomEvent("fw-share", { detail: chat }))
+}
+
 export function useChatActions(chat) {
-  const { patchChat, removeChat, toast } = useStore()
+  const { patchChat, removeChat, toast, loadChats } = useStore()
   const confirm = useConfirm()
   const navigate = useNavigate()
   const params = useParams()
@@ -77,6 +81,19 @@ export function useChatActions(chat) {
         await api.patch("/api/chats/" + chat.id, { project_id: projectId || "" })
         patchChat(chat.id, { project_id: projectId || null })
         toast(projectId ? "Moved to project" : "Removed from project", "ok")
+      } catch (problem) {
+        toast(problem.message, "error")
+      }
+    },
+    share() {
+      openShare(chat)
+    },
+    async fork(messageId) {
+      try {
+        const data = await api.post("/api/chats/" + chat.id + "/fork", { message_id: messageId || 0 })
+        await loadChats()
+        toast("Branched into a new chat", "ok")
+        navigate("/app/c/" + data.chat.id)
       } catch (problem) {
         toast(problem.message, "error")
       }
@@ -163,7 +180,9 @@ function ChatRow({ chat, active, onNavigate }) {
             <MenuItem icon={FolderInput} right={<ChevronRight size={14} />} onClick={() => setView("move")}>Move to project</MenuItem>
             <MenuSep />
             <MenuItem icon={ExternalLink} onClick={() => { setMenu(false); window.open("/app/c/" + chat.id, "_blank", "noopener") }}>Open in new tab</MenuItem>
-            <MenuItem icon={Link2} onClick={() => { setMenu(false); actions.copyLink() }}>Copy link</MenuItem>
+            <MenuItem icon={Share2} onClick={() => { setMenu(false); actions.share() }}>Share</MenuItem>
+            <MenuItem icon={GitBranch} onClick={() => { setMenu(false); actions.fork() }}>Branch into a new chat</MenuItem>
+            <MenuItem icon={Link2} onClick={() => { setMenu(false); actions.copyLink() }}>Copy private link</MenuItem>
             <MenuItem icon={Download} onClick={() => { setMenu(false); actions.exportMarkdown() }}>Export as Markdown</MenuItem>
             <MenuSep />
             <MenuItem icon={Trash2} danger onClick={() => { setMenu(false); actions.remove() }}>Delete</MenuItem>

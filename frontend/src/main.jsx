@@ -36,6 +36,7 @@ const Admin = named(() => import("./pages/app/Admin"), "Admin")
 const AppTemplates = named(() => import("./pages/app/More"), "AppTemplates")
 const Design = lazy(() => import("./pages/app/Design"))
 const Plugins = lazy(() => import("./pages/app/Plugins"))
+const Share = lazy(() => import("./pages/app/Share"))
 
 // Studio was folded into the agent: old links open the same chat
 function StudioRedirect() {
@@ -93,6 +94,7 @@ function App() {
         <Route path="/forgot" element={<Bare><Forgot /></Bare>} />
         <Route path="/reset/:token" element={<Bare><Reset /></Bare>} />
         <Route path="/welcome" element={<Bare><Welcome /></Bare>} />
+        <Route path="/share/:token" element={<Bare><Share /></Bare>} />
         <Route path="/studio" element={<Navigate to="/app" replace />} />
         <Route path="/studio/:chatId" element={<StudioRedirect />} />
         <Route path="/app" element={<Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#09090a" }} />}><AppShell /></Suspense>}>

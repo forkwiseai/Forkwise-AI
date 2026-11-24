@@ -103,6 +103,8 @@ export function openEvents(runId, after, onEvent, onClose) {
 }
 
 export function rawUrl(wid, path, download) {
+  // A shared chat has no workspace of its own for the reader: its files come through the share link.
+  if (String(wid || "").startsWith("share:")) return API + "/api/share/" + String(wid).slice(6) + "/raw?path=" + encodeURIComponent(path)
   return API + "/api/ws/" + wid + "/raw?path=" + encodeURIComponent(path) + (download ? "&download=1" : "")
 }
 

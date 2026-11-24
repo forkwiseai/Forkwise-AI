@@ -181,6 +181,7 @@ export default function Workspace({ wid, local, tab, setTab, onClose, preview, r
         <button className="fw-iconbtn fw-iconbtn-sm" title="Close panel" onClick={onClose}><X size={15} /></button>
       </div>
       <div className="fw-workspace-body">
+        <div className="fw-pane-anim" key={active}>
         <Suspense fallback={<div className="fw-empty-small fw-center"><Loader2 size={16} className="fw-spin" /></div>}>
           {active === "activity" && <ActivityPane messages={messages || []} running={running} onOpenFile={onOpenFile} />}
           {active === "preview" && <PreviewPane preview={preview} refreshKey={refreshKey} />}
@@ -191,6 +192,7 @@ export default function Workspace({ wid, local, tab, setTab, onClose, preview, r
           {active === "terminal" && <TerminalPane wid={wid} theme={theme} />}
           {active === "plan" && <PlanPane wid={wid} todos={todos || []} refreshKey={refreshKey} />}
         </Suspense>
+        </div>
       </div>
     </aside>
   )

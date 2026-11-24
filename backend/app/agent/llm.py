@@ -720,7 +720,7 @@ def candidates_for(model):
         if other["key"] != model["key"]:
             if model.get("plan_scope") == "free":
                 from app import pricing
-                if pricing.model_tier(other["id"]) not in ("free", "open"):
+                if pricing.model_tier(other["id"], other) not in ("free", "open"):
                     continue
             result.append(other)
     ready = []

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Navigate } from "react-router-dom"
-import { Activity, CircleDollarSign, Crown, Inbox, LogOut, Mail, MessageSquare, Search, Send, Server, Shield, Trash2, UserPlus, Users } from "lucide-react"
+import { Activity, CircleDollarSign, Crown, Inbox, LogOut, Mail, MessageSquare, RotateCcw, Search, Send, Server, Shield, Trash2, UserPlus, Users } from "lucide-react"
 import { useStore } from "../../lib/store"
 import { api } from "../../lib/api"
 import Avatar from "../../dash/Avatar"
@@ -187,6 +187,18 @@ function UserDialog({ row, me, onClose, onChanged }) {
     }
   }
 
+  async function resetUsage() {
+    const sure = await confirm({ title: "Reset this week's usage for " + row.email + "?", text: "Their Today and Week meters go back to 0. Plan and payments stay as they are.", confirmLabel: "Reset usage" })
+    if (!sure) return
+    try {
+      await api.del("/api/admin/users/" + row.id + "/usage")
+      toast("Usage reset", "ok")
+      onChanged()
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+  }
+
   async function remove() {
     const sure = await confirm({ title: "Delete " + row.email + "?", text: "Their account and everything they made are removed right away. This can't be undone.", confirmLabel: "Delete user", danger: true })
     if (!sure) return
@@ -239,6 +251,7 @@ function UserDialog({ row, me, onClose, onChanged }) {
           <section className="fw-userdetail-actions">
             <Button size="sm" icon={Shield} disabled={self} loading={busy === "admin"} onClick={() => send({ is_admin: row.is_admin ? 0 : 1 }, row.is_admin ? "Admin removed" : "Admin added", "admin")}>{row.is_admin ? "Remove admin" : "Make admin"}</Button>
             <Button size="sm" icon={LogOut} disabled={self} onClick={endSessions}>Sign out everywhere</Button>
+            <Button size="sm" icon={RotateCcw} onClick={resetUsage}>Reset week's usage</Button>
             <span className="fw-grow" />
             <Button size="sm" variant="danger" icon={Trash2} disabled={self} onClick={remove}>Delete user</Button>
           </section>

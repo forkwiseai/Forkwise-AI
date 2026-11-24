@@ -19,13 +19,12 @@ The sandbox has python-docx, openpyxl, xlsxwriter, python-pptx, reportlab, pypdf
 - Use real formulas for totals so the sheet stays live, and named ranges or a separate Inputs sheet for assumptions.
 - Charts with xlsxwriter when the user wants them inside Excel.
 
-## PowerPoint (python-pptx)
-- One idea per slide, a title that states the point, at most five short bullets, large type (title 32 to 40pt, body 18 to 24pt).
-- Consistent layout: same margins, one accent color, images and charts aligned to a grid. Put detail in the speaker notes.
+## PowerPoint
+- Load the presentations skill (use_skill presentations): it has the layout rules, pptxgenjs and python-pptx recipes and deckkit for animations and transitions that PowerPoint opens cleanly.
 
 ## PDF
 - From HTML or Markdown: pandoc, or reportlab for precise layouts and generated reports.
 - Merge, split or extract with pypdf. Read text with pdftotext.
 
 ## Always check the result
-Render pages to images and look at them before sending: libreoffice is not installed, so for PDF use pdftoppm -png -r 80 file.pdf page, and for pptx and docx check the structure in code (count slides, read back text) and keep layouts simple. Then give the user the file.
+Render pages to images and look at them before sending: soffice --headless --convert-to pdf file.pptx (or .docx), then pdftoppm -png -r 60 file.pdf page, and open the images with read_file. If soffice is missing in an older sandbox, check the structure in code (count slides, read back text). Then give the user the file with show_file.

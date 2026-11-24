@@ -408,7 +408,8 @@ def charge(run, answer):
     model_id = key.split(":", 1)[-1] if key else (run.model or {}).get("id", "")
     cached = int(usage.get("cached_tokens") or 0)
     run.cached_tokens = getattr(run, "cached_tokens", 0) + cached
-    run.cost = getattr(run, "cost", 0.0) + pricing.cost(model_id, usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0, cached, own_key=bool((run.model or {}).get("own")))
+    answered = run.model if (run.model or {}).get("key") == key else (config.find_model(key) if key else run.model)
+    run.cost = getattr(run, "cost", 0.0) + pricing.cost(model_id, usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0, cached, own_key=bool((run.model or {}).get("own")), model=answered)
 
 
 def small_model_note(run):
@@ -549,6 +550,15 @@ def recover_calls(answer, specs_list):
     reasoning = answer["reasoning"] or ""
     unknown = []
     leaked = leaks.has_leak(content) or (len(calls) == 0 and leaks.has_leak(reasoning))
+    if not leaked and len(calls) == 0:
+        found, cleaned = leaks.bare_calls(content, tool_names(specs_list))
+        if found:
+            for item in found:
+                calls.append({"id": "call_" + db.new_id("t"), "type": "function", "function": {"name": item["name"], "arguments": item["arguments"]}})
+            # Counted as a leak, so the model's health score still learns that it wrote calls as text.
+            return calls, cleaned, reasoning, True, unknown
+        if leaks.announced_only(content):
+            return calls, re.sub(r"\[?\s*\\text\{[^}]*\}\s*\]?", "", content).strip(), reasoning, True, unknown
     if not leaked:
         return calls, content, reasoning, False, unknown
     if len(calls) == 0:
@@ -609,6 +619,7 @@ async def execute_call(run, call):
     args, raw = parse_args(call)
     if args is None:
         return name, {}, tools.result("Your arguments for " + name + " were not valid JSON. Send them again as one JSON object. What you sent began with: " + raw[:200], ok=False)
+    toolcatalog.coerce((getattr(run, "full_specs", None) or {}).get(name), args)
     run.emit("tool_start", {"id": call["id"], "name": name, "args": args})
     shown = toolcatalog.gate(run, name, args)
     if shown is not None:

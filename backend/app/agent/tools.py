@@ -1007,6 +1007,17 @@ async def save_skill(run, args):
     return result("Saved the skill " + name + ".", meta={"skill": name})
 
 
+def install_deckkit(run):
+    """Copies the animation helper into the project, so decks work even in a sandbox built before it existed."""
+    source = config.ROOT / "sandbox" / "deckkit.py"
+    try:
+        target = sandbox.host_root(run.wid) / ".forkwise" / "deckkit.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    except OSError:
+        pass
+
+
 async def use_skill(run, args):
     name = (args.get("name") or "").strip()
     row = db.one_row("SELECT * FROM skills WHERE user_id = ? AND name = ?", (run.user["id"], name))
@@ -1017,6 +1028,8 @@ async def use_skill(run, args):
         found = library.find(name)
         if found:
             run.emit("capability", {"kind": "skill_used", "name": name})
+            if name in ("presentations", "documents"):
+                install_deckkit(run)
             return result(found["body"], meta={"skill": name})
         return result("No skill named " + name + ".", ok=False)
     return result(row["body"])

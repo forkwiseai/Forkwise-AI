@@ -50,7 +50,29 @@ function Table({ children }) {
   return <div className="fw-table-wrap"><table>{children}</table></div>
 }
 
-const components = { pre: CodeBlock, a: Link, table: Table }
+function Picture({ src, alt }) {
+  return <img className="fw-md-img" src={src} alt={alt || ""} loading="lazy" />
+}
+
+// Each block picks its own direction, so a Persian paragraph is right-to-left and an English one left-to-right
+// inside the same answer.
+const auto = (Tag) => function Directed({ node, ...props }) { return <Tag dir="auto" {...props} /> }
+
+const components = { pre: CodeBlock, a: Link, table: Table, img: Picture, p: auto("p"), ul: auto("ul"), ol: auto("ol"), li: auto("li"), h1: auto("h1"), h2: auto("h2"), h3: auto("h3"), h4: auto("h4"), blockquote: auto("blockquote"), td: auto("td"), th: auto("th") }
+
+// Some models wrap their whole answer in HTML like <div dir="rtl"> ... </div> (sometimes malformed, as
+// <div dir="rtl")). That markup is shown as text, so it is removed; direction is handled per block above.
+export function cleanModelText(text) {
+  const parts = String(text || "").split(/(```[\s\S]*?(?:```|$))/)
+  for (let i = 0; i < parts.length; i += 2) {
+    parts[i] = parts[i]
+      .replace(/^[ \t]*<div\s+dir\s*=\s*["']?(?:rtl|ltr|auto)["']?\s*[>)][ \t]*/gim, "")
+      .replace(/^[ \t]*<\/div>[ \t]*$/gim, "")
+      .replace(/<div\s+dir\s*=\s*["']?(?:rtl|ltr|auto)["']?\s*[>)]/gi, "")
+      .replace(/\n{3,}/g, "\n\n")
+  }
+  return parts.join("")
+}
 
 function MarkdownView({ text }) {
   return (
@@ -60,7 +82,7 @@ function MarkdownView({ text }) {
         rehypePlugins={[rehypeKatex, [rehypeHighlight, { ignoreMissing: true, detect: false }]]} 
         components={components}
       >
-        {text || ""}
+        {cleanModelText(text)}
       </ReactMarkdown>
     </div>
   )

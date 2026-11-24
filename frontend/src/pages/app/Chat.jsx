@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { ArrowDown, ChevronDown, Download, FolderKanban, FolderOpen, ListChecks, MessageSquare, PanelRight, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
+import { ArrowDown, ChevronDown, Download, FileDown, FolderKanban, FolderOpen, GitBranch, ListChecks, MessageSquare, PanelRight, Pencil, Pin, PinOff, Share2, Trash2 } from "lucide-react"
 import Composer from "../../components/app/Composer"
 import VoiceMode from "../../components/app/VoiceMode"
 import MessageList from "../../components/app/MessageList"
 import RunBar from "../../components/app/RunBar"
 import Workspace from "../../components/app/workspace/Workspace"
 import { Button, Empty, IconButton, MenuItem, MenuSep, Popover, Skeleton, useConfirm } from "../../dash/kit"
-import { useChatActions } from "../../dash/Sidebar"
+import { openShare, useChatActions } from "../../dash/Sidebar"
+import { useStickToBottom } from "../../lib/stick"
 import { useChat } from "../../lib/useChat"
 import { useStore } from "../../lib/store"
 import { api, apiUrl } from "../../lib/api"
@@ -32,7 +33,7 @@ export default function Chat() {
   const { chatId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { models, patchChat, theme, toast } = useStore()
+  const { models, patchChat, theme, toast, loadChats } = useStore()
   const confirm = useConfirm()
   const [panel, setPanel] = useState(false)
   const [tab, setTab] = useState("activity")
@@ -40,15 +41,15 @@ export default function Chat() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [width, setWidth] = useState(readWidth)
   const [seed, setSeed] = useState(null)
-  const [atBottom, setAtBottom] = useState(true)
   const [voice, setVoice] = useState(false)
-  const scroller = useRef(null)
+  const [panelMounted, setPanelMounted] = useState(false)
+  const [panelEntered, setPanelEntered] = useState(false)
   const sentFirst = useRef(false)
   const toolNames = useRef({})
   const widthRef = useRef(width)
   widthRef.current = width
 
-  const { state, send, stop, respond, reload, setChat } = useChat(chatId, {
+  const chatHook = useChat(chatId, {
     onEvent(event) {
       if (event.type === "tool_start") {
         toolNames.current[event.id] = event.name
@@ -73,6 +74,27 @@ export default function Chat() {
       if (event.type === "memory") toast("Saved to memory", "ok")
     },
   })
+  const { state, stop, respond, reload, setChat } = chatHook
+  const stick = useStickToBottom({ live: state.live.running })
+  const scroller = stick.box
+  const atBottom = stick.atBottom
+
+  function send(text, extra) {
+    stick.onSend()
+    return chatHook.send(text, extra)
+  }
+
+  // The workspace panel slides in and out instead of popping: it stays mounted for its closing animation.
+  useEffect(() => {
+    if (panel) {
+      setPanelMounted(true)
+      const frame = requestAnimationFrame(() => requestAnimationFrame(() => setPanelEntered(true)))
+      return () => cancelAnimationFrame(frame)
+    }
+    setPanelEntered(false)
+    const timer = setTimeout(() => setPanelMounted(false), 320)
+    return () => clearTimeout(timer)
+  }, [panel])
 
   useEffect(() => {
     sentFirst.current = false
@@ -99,14 +121,9 @@ export default function Chat() {
   }, [state.loading])
 
   useEffect(() => {
-    if (atBottom && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight
-  }, [state.messages, state.live, atBottom])
-
-  function onScroll() {
-    const box = scroller.current
-    if (!box) return
-    setAtBottom(box.scrollHeight - box.scrollTop - box.clientHeight < 80)
-  }
+    // Opening a chat starts at its newest message.
+    if (!state.loading) stick.toBottom(true)
+  }, [state.loading, chatId])
 
   async function setMode(mode) {
     setChat({ mode })
@@ -142,8 +159,14 @@ export default function Chat() {
     return null
   }
 
-  async function rewind(message) {
-    const sure = await confirm({ title: "Go back to this message?", text: "Later messages are removed and file changes made after it are undone.", confirmLabel: "Go back", danger: true })
+  async function rewind(message, how) {
+    const editing = how === "edit"
+    const sure = await confirm({
+      title: editing ? "Edit this message?" : "Go back to this message?",
+      text: editing ? "It goes back into the message box. Later messages are removed and file changes made after it are undone." : "Later messages are removed and file changes made after it are undone.",
+      confirmLabel: editing ? "Edit" : "Go back",
+      danger: !editing,
+    })
     if (!sure) return
     try {
       const data = await api.post("/api/chats/" + chatId + "/rewind", { message_id: message.id, files: true })
@@ -151,6 +174,31 @@ export default function Chat() {
       setSeed({ value: data.content })
       setRefreshKey((value) => value + 1)
       toast(data.files_restored ? "Restored files and conversation" : "Restored conversation")
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+  }
+
+  async function regenerate(message) {
+    const sure = await confirm({ title: "Answer this again?", text: "The last answer is replaced and the file changes it made are undone.", confirmLabel: "Try again" })
+    if (!sure) return
+    try {
+      const attachments = (message.meta && message.meta.attachments) || []
+      const data = await api.post("/api/chats/" + chatId + "/rewind", { message_id: message.id, files: true })
+      await reload(false)
+      setRefreshKey((value) => value + 1)
+      send(data.content, { attachments })
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+  }
+
+  async function branch(message) {
+    try {
+      const data = await api.post("/api/chats/" + chatId + "/fork", { message_id: message ? message.id : 0 })
+      await loadChats()
+      toast("Branched into a new chat", "ok")
+      navigate("/app/c/" + data.chat.id)
     } catch (problem) {
       toast(problem.message, "error")
     }
@@ -229,11 +277,14 @@ export default function Chat() {
               <span className="fw-steps-bar"><span style={{ width: (done / todos.length) * 100 + "%" }} /></span>
             </button>
           )}
+          {!chat.local_path && state.messages.length > 0 && (
+            <button type="button" className="fw-share-btn" onClick={() => openShare(chat)} title="Share this chat"><Share2 size={14} /><span>Share</span></button>
+          )}
           {!chat.local_path && <a className="fw-iconbtn" title="Download all files" aria-label="Download all files" href={apiUrl("/api/ws/" + chat.workspace_id + "/zip")}><Download size={16} /></a>}
           <IconButton icon={PanelRight} label="Workspace: preview, files, changes, terminal" active={panel} onClick={() => setPanel(!panel)} />
         </header>
-        <div className="fw-chat-scroll" ref={scroller} onScroll={onScroll}>
-          <div className="fw-chat-inner">
+        <div className="fw-chat-scroll" ref={scroller} tabIndex={-1}>
+          <div className="fw-chat-inner" ref={stick.content}>
             {state.messages.length === 0 && !state.live.running && (
               <Empty icon={MessageSquare} title="Send a message to start" />
             )}
@@ -242,16 +293,19 @@ export default function Chat() {
               wid={chat.workspace_id}
               respond={respond}
               onPreview={openPreview}
-              onRewind={rewind}
+              onRewind={(message) => rewind(message, "back")}
+              onEdit={(message) => rewind(message, "edit")}
+              onFork={chat.local_path ? null : branch}
+              onRegenerate={regenerate}
               onApprovePlan={approvePlan}
               onRevisePlan={revisePlan}
             />
           </div>
         </div>
         <div className="fw-chat-bottom">
-          {!atBottom && (
-            <button type="button" className="fw-tobottom" onClick={() => { scroller.current.scrollTop = scroller.current.scrollHeight }} aria-label="Scroll to the latest message"><ArrowDown size={15} /></button>
-          )}
+          <button type="button" className={"fw-tobottom" + (atBottom ? "" : " is-shown")} onClick={() => stick.toBottom(false)} aria-label="Scroll to the latest message" tabIndex={atBottom ? -1 : 0}>
+            <ArrowDown size={15} />{state.live.running && <span className="fw-tobottom-live" />}
+          </button>
           <RunBar state={state} onStop={stop} onOpenChanges={() => { setPanel(true); setTab("changes") }} />
           {voice ? (
             <VoiceMode live={state.live} onSend={(text, extra) => send(text, extra)} onClose={() => setVoice(false)} />
@@ -274,10 +328,11 @@ export default function Chat() {
           )}
         </div>
       </section>
-      {panel && (
+      {panelMounted && (
         <>
-          <div className="fw-panel-handle" onMouseDown={startDrag} />
-          <div className="fw-panel" style={{ width }}>
+          <div className={"fw-panel-handle" + (panelEntered ? " is-open" : "")} onMouseDown={startDrag} onDoubleClick={() => { setWidth(560); try { localStorage.setItem("fw-panel", "560") } catch (problem) { /* storage blocked */ } }} title="Drag to resize, double-click to reset" />
+          <div className={"fw-panel" + (panelEntered ? " is-open" : "")} style={{ "--panel-w": width + "px" }}>
+            <div className="fw-panel-inner" style={{ width }}>
             <Workspace
               wid={chat.workspace_id}
               local={Boolean(chat.local_path)}
@@ -295,6 +350,7 @@ export default function Chat() {
               running={state.live.running}
               onOpenFile={openFile}
             />
+            </div>
           </div>
         </>
       )}
@@ -329,6 +385,9 @@ function ChatTitle({ chat, project }) {
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={anchor} width={190}>
         <MenuItem icon={Pencil} onClick={() => { setOpen(false); setEditing(true) }}>Rename</MenuItem>
         <MenuItem icon={listed.pinned ? PinOff : Pin} onClick={() => { setOpen(false); actions.pin() }}>{listed.pinned ? "Unpin" : "Pin"}</MenuItem>
+        {!chat.local_path && <MenuItem icon={Share2} onClick={() => { setOpen(false); actions.share() }}>Share</MenuItem>}
+        {!chat.local_path && <MenuItem icon={GitBranch} onClick={() => { setOpen(false); actions.fork() }}>Branch into a new chat</MenuItem>}
+        <MenuItem icon={FileDown} onClick={() => { setOpen(false); actions.exportMarkdown() }}>Export as Markdown</MenuItem>
         <MenuSep />
         <MenuItem icon={Trash2} danger onClick={() => { setOpen(false); actions.remove() }}>Delete</MenuItem>
       </Popover>

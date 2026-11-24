@@ -304,3 +304,42 @@ def repair_note(names, unknown):
     if shown:
         text = text + " Your tools are: " + ", ".join(shown) + "."
     return text
+
+
+# Some models (seen with Nemotron) write a call on its own line as plain text, name then JSON:
+#     show_file {"path": "/workspace/deck.pptx", "caption": "..."}
+# or announce one in LaTeX-ish text without arguments: [ \text{Calling bash...} ]
+# The first kind carries everything needed to run it; the second only means a repair note is needed.
+BARE_LINE = re.compile(r"^[ \t>*`]*([A-Za-z_][\w]*)[ \t]*[:(]?[ \t]*(\{.*\})[ \t)`]*$", re.M)
+ANNOUNCED = re.compile(r"\\text\{\s*Calling\b|\[\s*Calling\s+[\w.]+\s*\.\.\.\s*\]")
+
+
+def bare_calls(text, names):
+    """Finds "tool_name {json}" lines for known tools. Returns (calls, text without those lines)."""
+    if not text:
+        return [], text
+    found = []
+    spans = []
+    for match in BARE_LINE.finditer(text):
+        name = match.group(1)
+        if name not in names:
+            continue
+        try:
+            value = json.loads(match.group(2))
+        except ValueError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        found.append({"name": name, "arguments": json.dumps(value, ensure_ascii=False)})
+        spans.append((match.start(), match.end()))
+    if not found:
+        return [], text
+    cleaned = text
+    for start, end in reversed(spans):
+        cleaned = cleaned[:start] + cleaned[end:]
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return found, cleaned
+
+
+def announced_only(text):
+    return bool(text) and bool(ANNOUNCED.search(text))

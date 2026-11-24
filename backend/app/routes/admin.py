@@ -6,7 +6,7 @@ from app import db, config, mailer, notify
 from app.routes.auth import admin_user
 
 PLAN_NAMES = ["free", "pro", "premium"]
-USER_TABLES = ["chats", "projects", "memories", "custom_tools", "skills", "mcp_servers", "devices", "connections", "secrets", "schedules", "sessions", "password_resets", "usage_daily", "payments", "action_codes", "security_events", "plugins", "user_providers"]
+USER_TABLES = ["chats", "projects", "memories", "custom_tools", "skills", "mcp_servers", "devices", "connections", "secrets", "schedules", "sessions", "password_resets", "usage_daily", "payments", "action_codes", "security_events", "plugins", "user_providers", "chat_shares", "usage_cost"]
 
 
 class UserChange(BaseModel):
@@ -119,6 +119,23 @@ def end_sessions(user_id: str, request: Request):
     db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
     security.log(user_id, "sessions_revoked", detail="by an admin")
     return {"ok": True}
+
+
+def reset_usage(user_id: str, request: Request):
+    """Clears this week's metered spend and tokens for one person, so the Today and Week meters start again at 0.
+    Used after a pricing fix or as a goodwill gesture; the payments and plan are untouched."""
+    from app import plans, security
+    admin_user(request)
+    first = plans.day_text(plans.windows()["week"][0])
+    user = db.one_row("SELECT * FROM users WHERE id = ?", (user_id,))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    db.execute("DELETE FROM usage_cost WHERE user_id = ? AND day >= ?", (user_id, first))
+    if plans.caps(user)["unit"] == "tokens":
+        # The free plan is metered in tokens; paid plans keep their token history for the statistics.
+        db.execute("UPDATE usage_daily SET tokens_in = 0, tokens_out = 0 WHERE user_id = ? AND day >= ?", (user_id, first))
+    security.log(user_id, "usage_reset", detail="by an admin")
+    return {"ok": True, "limits": plans.limit_state(user)}
 
 
 def change_user(user_id: str, body: UserChange, request: Request):
@@ -240,4 +257,5 @@ def register_routes(app):
     app.add_api_route("/api/admin/users/{user_id}", delete_user, methods=["DELETE"])
     app.add_api_route("/api/admin/users/{user_id}/detail", user_detail, methods=["GET"])
     app.add_api_route("/api/admin/users/{user_id}/sessions", end_sessions, methods=["DELETE"])
+    app.add_api_route("/api/admin/users/{user_id}/usage", reset_usage, methods=["DELETE"])
     app.add_api_route("/api/admin/payments", payments, methods=["GET"])

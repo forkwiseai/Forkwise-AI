@@ -269,6 +269,16 @@ CREATE TABLE IF NOT EXISTS crypto_state (
     chain TEXT PRIMARY KEY,
     height INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_shares (
+    token TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    visibility TEXT NOT NULL DEFAULT 'public',
+    upto REAL NOT NULL DEFAULT 0,
+    views INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chat_shares_chat ON chat_shares(chat_id);
 CREATE TABLE IF NOT EXISTS usage_cost (
     user_id TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -590,6 +600,16 @@ MYSQL_TABLES = [
 """CREATE TABLE IF NOT EXISTS crypto_state (
     chain VARCHAR(32) PRIMARY KEY,
     height BIGINT NOT NULL
+)""",
+"""CREATE TABLE IF NOT EXISTS chat_shares (
+    token VARCHAR(64) PRIMARY KEY,
+    chat_id VARCHAR(64) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    visibility VARCHAR(16) NOT NULL DEFAULT 'public',
+    upto DOUBLE NOT NULL DEFAULT 0,
+    views INT NOT NULL DEFAULT 0,
+    created_at DOUBLE NOT NULL,
+    INDEX chat_shares_chat (chat_id)
 )""",
 """CREATE TABLE IF NOT EXISTS usage_cost (
     user_id VARCHAR(64) NOT NULL,
