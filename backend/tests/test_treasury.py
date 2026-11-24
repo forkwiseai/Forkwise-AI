@@ -12,7 +12,7 @@ def test_plan_math():
     assert low["low"] and not low["critical"]
     assert low["top_up"] == 50 and low["send_usdc"] == 52.5
     critical = treasury.plan(8.0, 35.0)  # 1.6 days
-    assert critical["critical"] and critical["top_up"] == 75  # 2*35 + 10 - 8 = 72 -> 75
+    assert critical["critical"] and critical["top_up"] == 72  # 2*35 + 10 - 8 = 72
     quiet = treasury.plan(0.0, 0.0)  # a new account: the $10 that unlocks free models
     assert quiet["low"] and quiet["top_up"] == 10 and quiet["send_usdc"] == 10.5
     unknown = treasury.plan(None, 10.0)
@@ -65,3 +65,9 @@ def test_without_management_key_reports_why(monkeypatch):
         result = await treasury.check(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
         assert result["balance"] is None and "management key" in result["error"] and result["burn7"] == 7
     asyncio.run(go())
+
+
+def test_tiny_spend_does_not_jump_to_next_five():
+    # a new account with a few cents of spending: $10 minimum plus cents, rounded up to $11, not $15
+    found = treasury.plan(0.0, 0.03)
+    assert found["top_up"] == 11 and found["send_usdc"] == 11.55

@@ -36,6 +36,10 @@ function money(value) {
   return "$" + Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })
 }
 
+function cents(value) {
+  return "$" + Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function date(seconds) {
   if (!seconds) return "-"
   return new Date(seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
@@ -76,9 +80,9 @@ function Treasury() {
           <p className="fw-muted fw-small-text">{data.error || "No balance yet."}</p>
         ) : (
           <div className="fw-stats-row is-3">
-            <div className="fw-stat"><span>Balance</span><strong style={{ color: tone }}>{money(data.balance)}</strong><small>{data.days_left !== null ? data.days_left + " days left" : "No spending yet"}</small></div>
-            <div className="fw-stat"><span>Spent, last 7 days</span><strong>{money(data.burn7)}</strong><small>{money(data.daily) + " a day"}</small></div>
-            <div className="fw-stat"><span>{data.low ? "Send now" : "Keep at least"}</span><strong style={{ color: tone }}>{data.low ? data.send_usdc + " USDC" : money(data.target)}</strong><small>{data.low ? "Buys $" + data.top_up + " of credits, 5% crypto fee included" : "1.5 weeks of spending"}</small></div>
+            <div className="fw-stat"><span>Balance</span><strong style={{ color: tone }}>{cents(data.balance)}</strong><small>{data.balance <= 0 ? "No credits bought yet" : data.days_left !== null ? data.days_left + " days left" : "No spending yet"}</small></div>
+            <div className="fw-stat"><span>Spent, last 7 days</span><strong>{cents(data.burn7)}</strong><small>{cents(data.daily) + " a day"}</small></div>
+            <div className="fw-stat"><span>{data.low ? "Send now" : "Keep at least"}</span><strong style={{ color: tone }}>{data.low ? data.send_usdc + " USDC" : money(data.target)}</strong><small>{data.low ? (data.balance <= 0 ? "First purchase: $" + data.top_up + " of credits (OpenRouter's $10 minimum for free models plus this week's spending), 5% crypto fee included" : "Buys $" + data.top_up + " of credits, 5% crypto fee included") : "1.5 weeks of spending"}</small></div>
           </div>
         )}
         {data.low && <p className="fw-small-text" style={{ marginTop: 10 }}><a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">Open OpenRouter credits</a>, choose crypto, and send the amount above in USDC from your wallet. Check the network the checkout asks for before sending.</p>}

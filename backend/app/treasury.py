@@ -6,7 +6,7 @@ Numbers (all in USD):
                  Forkwise's own priced spend over 7 days)
   daily    = burn7 / 7,  days_left = balance / daily
   target   = max(MIN_BALANCE, burn7 * TARGET_WEEKS)             low when balance < target
-  top_up   = round up to $5 of max(MIN_PURCHASE, burn7 * FILL_WEEKS + MIN_BALANCE - balance)
+  top_up   = round up to the whole dollar of max(MIN_PURCHASE, burn7 * FILL_WEEKS + MIN_BALANCE - balance)
   send     = top_up * (1 + CRYPTO_FEE)                          the USDC to send, fee included
 
 Alerts go by email to every admin and, if set, to a Telegram chat; at most one every ALERT_EVERY seconds,
@@ -61,7 +61,7 @@ def plan(balance, burn7):
     result["critical"] = result["days_left"] is not None and result["days_left"] < CRITICAL_DAYS
     if result["low"]:
         need = max(setting("TREASURY_MIN_PURCHASE", "10"), burn7 * setting("TREASURY_FILL_WEEKS", "2") + min_balance - balance)
-        top_up = math.ceil(need / 5) * 5
+        top_up = math.ceil(round(need, 6))
         result["top_up"] = top_up
         result["send_usdc"] = math.ceil(top_up * (1 + setting("TREASURY_CRYPTO_FEE", "0.05")) * 100) / 100
     return result
