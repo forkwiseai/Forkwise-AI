@@ -242,6 +242,21 @@ def save_message(chat_id, role, content="", reasoning="", tool_calls=None, tool_
     return db.insert("messages", values)
 
 
+RARE_TOOLS = {"video": re.compile(r"video|ویدیو|ویدئو|فیلم|clip|animation|انیمیشن|reel|tiktok|تیک ?تاک|render", re.I)}
+
+
+def drop_unneeded(run, found):
+    # Each tool definition is sent on every step. A rarely used one is listed only when the request or the chat kind asks for it.
+    text = (getattr(run, "request", "") or "") + " " + str(run.chat.get("kind") or "")
+    kept = []
+    for spec in found:
+        pattern = RARE_TOOLS.get(spec["function"]["name"])
+        if pattern is not None and run.chat.get("kind") != "studio" and not pattern.search(text):
+            continue
+        kept.append(spec)
+    return kept
+
+
 async def refresh_tools(run):
     if run.mode == "plan":
         found = specs.plan_specs()
@@ -271,6 +286,7 @@ async def refresh_tools(run):
             found.append(specs.my_browser_spec(link.browser))
     if run.local:
         found = local.hide_sandbox_tools(found)
+    found = drop_unneeded(run, found)
     run.tool_specs = found
 
 
@@ -832,6 +848,8 @@ async def run_main(run, first_text):
             run.tokens_in = run.tokens_in + answer["usage"]["prompt_tokens"]
             run.tokens_out = run.tokens_out + answer["usage"]["completion_tokens"]
             calls, content, reasoning, leaked, unknown = recover_calls(answer, run.tool_specs)
+            if answer.get("model_key"):
+                llm.record_turn(answer["model_key"], bool(calls) or (bool(content.strip()) and not leaked))
             if run.stop_flag.is_set():
                 calls = []
             said_meta = {}

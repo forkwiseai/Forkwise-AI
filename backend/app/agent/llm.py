@@ -672,6 +672,22 @@ def cooling(model):
     return until > time.time()
 
 
+# Health of each model as an agent: a moving average of "bad turns" (empty answers, tool calls written as text).
+# 0 is healthy, 1 is useless. A model above DEMOTE_ABOVE is tried after the healthy ones.
+HEALTH = {}
+HEALTH_WEIGHT = 0.3
+DEMOTE_ABOVE = 0.5
+
+
+def record_turn(key, good):
+    old = HEALTH.get(key, 0.0)
+    HEALTH[key] = old + HEALTH_WEIGHT * ((0.0 if good else 1.0) - old)
+
+
+def health_of(key):
+    return HEALTH.get(key, 0.0)
+
+
 def candidates_for(model):
     # A person's own API never falls back to the server's models: errors with their key should show.
     if model.get("own"):
@@ -687,7 +703,11 @@ def candidates_for(model):
             waiting.append(item)
         else:
             ready.append(item)
-    return ready + waiting
+    # Keep the chosen model first unless it keeps failing as an agent; order the backups by health (stable sort).
+    first = ready[:1] if ready and ready[0]["key"] == model["key"] and health_of(model["key"]) <= DEMOTE_ABOVE else []
+    rest = ready[len(first):]
+    rest.sort(key=lambda item: health_of(item["key"]))
+    return first + rest + waiting
 
 
 async def stream_chat(model, messages, tools=None, on_delta=None, max_tokens=16000, temperature=None, stop_flag=None, effort=""):
@@ -719,6 +739,7 @@ async def stream_chat(model, messages, tools=None, on_delta=None, max_tokens=160
             await on_delta("switch", {"label": item.get("label") or item["key"]})
         try:
             answer = await stream_single(item, messages, tools, watched, fit_output(max_tokens, room), temperature, stop_flag, 5 if last_one else 2, effort, None if last_one else BACKUP_WAIT)
+            answer["model_key"] = item["key"]
             if item["key"] != model["key"]:
                 answer["switched_to"] = item["label"]
             return answer
