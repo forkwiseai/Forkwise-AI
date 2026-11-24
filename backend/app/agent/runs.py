@@ -49,6 +49,8 @@ class Run:
         self.tokens_in = 0
         self.tokens_out = 0
         self.finished_at = 0
+        self.started_at = time.time()
+        self.request_text = ""
         self.limit = 0
         self.used_before = 0
         if user and not user.get("is_admin") and not (model and model.get("own")):
@@ -895,6 +897,12 @@ async def run_main(run, first_text):
                         if not problems:
                             run.verified = True
                             run.emit("notice", {"text": "Verified: build, tests and services passed."})
+                    if not problems and not run.local:
+                        try:
+                            problems = await verifier.verify_documents(run)
+                        except Exception as problem:
+                            problems = []
+                            run.emit("notice", {"text": "Document check could not run: " + str(problem)[:160]})
                     if problems:
                         gates = gates + 1
                         run.emit("notice", {"text": "Checking the work before finishing: " + str(len(problems)) + " thing(s) to fix."})

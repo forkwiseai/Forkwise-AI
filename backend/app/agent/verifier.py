@@ -4,10 +4,12 @@ It does not trust what the agent wrote. It finds the projects the agent touched,
 real build and test commands, and checks that every registered service still answers.
 Only failures come back; each one carries the command and the tail of its output."""
 
+import base64
 import json
 import shlex
+from pathlib import Path
 
-from app.agent import sandbox
+from app.agent import sandbox, docscheck
 
 SKIP = ("node_modules/", ".venv/", "dist/", "build/", ".git/", "__pycache__/", ".forkwise/", ".next/")
 
@@ -101,3 +103,32 @@ async def verify(run):
         elif item["port"] and str(item["http"]).startswith("5"):
             problems.append("The service " + item["name"] + " answers HTTP " + str(item["http"]) + " (server error). Read its log and fix the cause.")
     return problems
+
+
+DOC_FIND = "find . -maxdepth 6 -type f \\( -iname '*.pptx' -o -iname '*.pdf' -o -iname '*.docx' \\) -newermt @{since} -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | head -20"
+
+
+async def verify_documents(run):
+    """Checks every deck, PDF and Word file made during this run with exact geometry and counting.
+    Runs in the sandbox, because that is where python-pptx lives. Returns a list of problems."""
+    since = int(getattr(run, "started_at", 0) or 0)
+    if not since:
+        return []
+    listing = await sandbox.run(run.wid, DOC_FIND.format(since=since), timeout=30, limit=4000)
+    files = [line.strip() for line in listing["output"].splitlines() if line.strip().lower().endswith(docscheck.DOC_TYPES)]
+    if not files:
+        return []
+    source = Path(docscheck.__file__).read_text(encoding="utf-8")
+    encoded = base64.b64encode(source.encode("utf-8")).decode("ascii")
+    flag = " --animate" if docscheck.wants_animation(getattr(run, "request_text", "")) else ""
+    command = "echo " + encoded + " | base64 -d > /tmp/.fw_docscheck.py && python3 /tmp/.fw_docscheck.py" + flag + " " + " ".join(shlex.quote(item) for item in files)
+    output = await sandbox.run(run.wid, command, timeout=120, limit=20000)
+    try:
+        report = json.loads(output["output"].strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return []
+    problems = []
+    for name, found in report.items():
+        for item in found:
+            problems.append(name + ": " + item)
+    return problems[:12]
