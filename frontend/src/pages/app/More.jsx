@@ -31,11 +31,19 @@ function CoinGlyph({ coin, size = 28 }) {
   return <span className="fw-coin" style={{ width: size, height: size, fontSize: size * 0.5, background: info.color }} aria-hidden="true">{info.glyph}</span>
 }
 
+// The first coin in server order, on its recommended network (or its first one). Computed before the first paint,
+// so the picker never opens on one coin and then jumps to another.
+function defaultCoin(options) {
+  if (!options || options.length === 0) return ""
+  const first = options[0].coin
+  const list = options.filter((item) => item.coin === first)
+  return (list.find((item) => item.recommended) || list[0]).key
+}
+
 function CoinPicker({ options, value, onChange }) {
   const coins = Array.from(new Set(options.map((item) => item.coin)))
   const current = options.find((item) => item.key === value) || options[0]
   const coin = current ? current.coin : coins[0]
-  const index = Math.max(0, coins.indexOf(coin))
   const networks = options.filter((item) => item.coin === coin).sort((a, b) => Number(b.recommended) - Number(a.recommended))
   function pickCoin(next) {
     if (next === coin) return
@@ -47,12 +55,13 @@ function CoinPicker({ options, value, onChange }) {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
     if (!step) return
     event.preventDefault()
-    pickCoin(coins[(index + step + coins.length) % coins.length])
+    const at = coins.indexOf(coin)
+    pickCoin(coins[(at + step + coins.length) % coins.length])
   }
   return (
     <div className="fw-paycoin">
-      <div className="fw-seg" role="radiogroup" aria-label="Coin" onKeyDown={onKey} style={{ "--seg-n": coins.length, "--seg-i": index }}>
-        <span className="fw-seg-thumb" aria-hidden="true" />
+      {/* Each button draws its own highlight, so it cannot drift away from the coin it belongs to. */}
+      <div className="fw-seg" role="radiogroup" aria-label="Coin" onKeyDown={onKey} style={{ gridTemplateColumns: "repeat(" + coins.length + ", minmax(0, 1fr))" }}>
         {coins.map((item) => (
           <button key={item} type="button" role="radio" aria-checked={item === coin} tabIndex={item === coin ? 0 : -1} className={cx("fw-seg-item", item === coin && "is-on")} onClick={() => pickCoin(item)}>
             <CoinGlyph coin={item} size={20} />
@@ -62,7 +71,7 @@ function CoinPicker({ options, value, onChange }) {
       </div>
       <div className="fw-netlist" role="radiogroup" aria-label="Network" key={coin}>
         {networks.map((item, order) => (
-          <button key={item.key} type="button" role="radio" aria-checked={item.key === value} className={cx("fw-netrow", item.key === value && "is-on")} style={{ "--row": order }} onClick={() => onChange(item.key)}>
+          <button key={item.key} type="button" role="radio" aria-checked={item.key === value} className={cx("fw-netrow", item.key === value && "is-on")} style={{ animationDelay: order * 45 + "ms" }} onClick={() => onChange(item.key)}>
             <span className="fw-netrow-radio" aria-hidden="true" />
             <span className="fw-netrow-name">
               <strong>{item.network_label}</strong>
@@ -182,7 +191,7 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
   const [busy, setBusy] = useState(false)
   const [invoice, setInvoice] = useState(null)
   const coins = ((methods.find((item) => item.key === "crypto") || {}).coins) || []
-  const [coin, setCoin] = useState("")
+  const [coin, setCoin] = useState(() => defaultCoin(coins))
 
   useEffect(() => {
     if (plan) {
@@ -190,7 +199,7 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
       setPeriod(yearly ? "year" : "month")
       setBusy(false)
       setInvoice(null)
-      setCoin(coins.length ? ((coins.find((item) => item.recommended) || coins[0]).key) : "")
+      setCoin(defaultCoin(coins))
     }
   }, [plan])
 
