@@ -167,15 +167,30 @@ def check(path, wants_animation=False):
     return []
 
 
+def stats(path):
+    """Counts used to check numbers stated in the final answer."""
+    try:
+        if path.lower().endswith(".pptx"):
+            from pptx import Presentation
+            return {"slides": len(Presentation(path).slides)}
+        if path.lower().endswith(".pdf"):
+            pages = pdf_pages(path)
+            return {"pages": len(pages) if pages else 0}
+    except Exception:
+        return {}
+    return {}
+
+
 def wants_animation(text):
     return bool(ANIMATION_WORDS.search(text or ""))
 
 
 if __name__ == "__main__":
     animate = "--animate" in sys.argv
-    report = {}
+    report = {"problems": {}, "stats": {}}
     for item in sys.argv[1:]:
         if item.startswith("--"):
             continue
-        report[item] = check(item, animate)
+        report["problems"][item] = check(item, animate)
+        report["stats"][item] = stats(item)
     print(json.dumps(report, ensure_ascii=False))

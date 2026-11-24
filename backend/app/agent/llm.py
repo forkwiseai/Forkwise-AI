@@ -704,7 +704,11 @@ def candidates_for(model):
         else:
             ready.append(item)
     # Keep the chosen model first unless it keeps failing as an agent; order the backups by health (stable sort).
-    first = ready[:1] if ready and ready[0]["key"] == model["key"] and health_of(model["key"]) <= DEMOTE_ABOVE else []
+    # A model the sequential test has proven capable is not demoted by a short run of bad turns: the moving average
+    # alone demotes a model with a 5% failure rate in 9% of 40-turn runs (bench/proofs.py).
+    from app.agent import capability
+    keep = health_of(model["key"]) <= DEMOTE_ABOVE or capability.verdict(model["key"]) == "capable"
+    first = ready[:1] if ready and ready[0]["key"] == model["key"] and keep else []
     rest = ready[len(first):]
     rest.sort(key=lambda item: health_of(item["key"]))
     return first + rest + waiting

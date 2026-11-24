@@ -9,7 +9,7 @@ import json
 import shlex
 from pathlib import Path
 
-from app.agent import sandbox, docscheck
+from app.agent import sandbox, docscheck, sitecheck
 
 SKIP = ("node_modules/", ".venv/", "dist/", "build/", ".git/", "__pycache__/", ".forkwise/", ".next/")
 
@@ -127,8 +127,50 @@ async def verify_documents(run):
         report = json.loads(output["output"].strip().splitlines()[-1])
     except (ValueError, IndexError):
         return []
+    run.doc_stats = report.get("stats") or {}
     problems = []
-    for name, found in report.items():
+    for name, found in (report.get("problems") or {}).items():
         for item in found:
             problems.append(name + ": " + item)
+    return problems[:12]
+
+
+WEB_TYPES = (".html", ".htm", ".jsx", ".tsx", ".vue", ".svelte", ".css")
+
+
+def site_targets(services, wrote):
+    """URLs to open: every live service with a port, else up to three static HTML files the run wrote."""
+    urls = []
+    for item in services:
+        if item.get("alive") and item.get("port"):
+            urls.append("http://localhost:" + str(item["port"]) + "/")
+    if not urls:
+        for path in wrote:
+            clean = path.replace("\\", "/").lstrip("./")
+            if clean.lower().endswith((".html", ".htm")) and not any(part in clean + "/" for part in SKIP):
+                urls.append("file://$PWD/" + clean)
+    return urls[:3]
+
+
+async def verify_site(run):
+    """Opens what the run built in a real browser. Returns a list of problems."""
+    wrote = getattr(run, "wrote", {}) or {}
+    touched_web = any(path.lower().endswith(WEB_TYPES) for path in wrote) or getattr(run, "served", False)
+    if not touched_web:
+        return []
+    urls = site_targets(await sandbox.service_list(run.wid), wrote)
+    if not urls:
+        return []
+    source = Path(sitecheck.__file__).read_text(encoding="utf-8")
+    encoded = base64.b64encode(source.encode("utf-8")).decode("ascii")
+    quoted = " ".join('"' + url.replace('"', "") + '"' for url in urls)
+    run.emit("notice", {"text": "Opening the site in a browser to check it: " + ", ".join(urls)})
+    output = await sandbox.run(run.wid, "echo " + encoded + " | base64 -d > /tmp/.fw_sitecheck.py && python3 /tmp/.fw_sitecheck.py " + quoted, timeout=240, limit=20000)
+    try:
+        report = json.loads(output["output"].strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return []
+    problems = []
+    for found in report.values():
+        problems.extend(item for item in found if not item.startswith("Could not check"))
     return problems[:12]

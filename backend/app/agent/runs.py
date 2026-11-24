@@ -4,7 +4,7 @@ import json
 import time
 import traceback
 from app import db, config
-from app.agent import verifier
+from app.agent import verifier, toolcatalog, budget, capability, claims
 from app.agent import llm, tools, specs, prompt, checkpoints, sandbox, integrations, local, leaks
 
 RUNS = {}
@@ -289,7 +289,11 @@ async def refresh_tools(run):
     if run.local:
         found = local.hide_sandbox_tools(found)
     found = drop_unneeded(run, found)
-    run.tool_specs = found
+    model_key = (run.model or {}).get("key", "")
+    sent, full, stubbed = toolcatalog.build(found, full_all=run.mode == "plan" or not toolcatalog.stubs_pay_off(model_key))
+    run.tool_specs = sent
+    run.full_specs = full
+    run.stubbed = stubbed
 
 
 def absorb_inbox(run):
@@ -393,6 +397,14 @@ async def compact(run, forced=False):
     return True
 
 
+def small_model_note(run):
+    if getattr(run, "small_noted", False):
+        return
+    run.small_noted = True
+    save_message(run.chat["id"], "note", prompt.SMALL_MODEL, hidden=1)
+    run.emit("notice", {"text": "This model often breaks tool calls, so it was given stricter step-by-step rules."})
+
+
 def warn_if_stuck(run, name, args, outcome):
     key = name + ":" + json.dumps(args, sort_keys=True, ensure_ascii=False)[:600]
     run.recent_calls.append((key, bool(outcome["ok"])))
@@ -412,6 +424,23 @@ def warn_if_stuck(run, name, args, outcome):
     if failures >= 6:
         run.recent_calls = []
         save_message(run.chat["id"], "note", "Six calls in a row failed. Pause, write down in one short paragraph what you know and what you assumed, and verify the assumption with a simple check before continuing.", hidden=1)
+
+
+def sent_chars(run, messages):
+    return len(json.dumps(messages, ensure_ascii=False, default=str)) + toolcatalog.size(run.tool_specs or [])
+
+
+def measured_size(run, messages):
+    fallback = llm.estimate_tokens(messages) + llm.tools_size(run.tool_specs)
+    return budget.calibrated(sent_chars(run, messages), getattr(run, "last_chars", 0), getattr(run, "last_tokens", 0), fallback)
+
+
+def learn_size(run, messages, answer):
+    tokens = (answer.get("usage") or {}).get("prompt_tokens") or 0
+    # llm fills in its own guess when the provider sends no usage; that is not a measurement.
+    if tokens and tokens != llm.estimate_tokens(messages):
+        run.last_chars = sent_chars(run, messages)
+        run.last_tokens = tokens
 
 
 def context_limit(run):
@@ -567,6 +596,9 @@ async def execute_call(run, call):
     if args is None:
         return name, {}, tools.result("Your arguments for " + name + " were not valid JSON. Send them again as one JSON object. What you sent began with: " + raw[:200], ok=False)
     run.emit("tool_start", {"id": call["id"], "name": name, "args": args})
+    shown = toolcatalog.gate(run, name, args)
+    if shown is not None:
+        return name, args, tools.result(shown, meta={"schema": True})
     if run.mode == "plan" and name == "task":
         args["agent"] = "explore"
     must = integrations.always_ask(name, args)
@@ -591,6 +623,41 @@ async def execute_call(run, call):
     return name, args, outcome
 
 
+# Calls that only read and touch no shared state. A run of two or more of them in one turn executes concurrently:
+# for k calls with i.i.d. durations the wait drops from k*mean to E[max]; for exponential durations that is
+# mean*H_k, a k/H_k speedup (1.92x at k=4). Results are still saved and shown in the order the model asked for.
+PARALLEL_SAFE = {"read_file", "list_dir", "glob", "grep", "web_search", "web_fetch", "job_output"}
+
+
+def parallel_groups(run, calls):
+    groups = []
+    current = []
+    for call in calls:
+        name = call["function"]["name"]
+        args, _ = parse_args(call)
+        safe = name in PARALLEL_SAFE and args is not None and name not in getattr(run, "stubbed", set())
+        if safe and run.mode != "ask" and not integrations.always_ask(name, args):
+            current.append(call)
+            continue
+        if len(current) > 1:
+            groups.append(current)
+        current = []
+    if len(current) > 1:
+        groups.append(current)
+    return groups
+
+
+async def prefetch_parallel(run, calls):
+    found = {}
+    for group in parallel_groups(run, calls):
+        results = await asyncio.gather(*(execute_call(run, call) for call in group), return_exceptions=True)
+        for call, item in zip(group, results):
+            if isinstance(item, Exception):
+                item = (call["function"]["name"], {}, tools.result(type(item).__name__ + ": " + str(item)[:300], ok=False))
+            found[call["id"]] = item
+    return found
+
+
 def bad_tool_position(text, specs):
     if "invalid JSON schema" not in text and "function.parameters" not in text:
         return -1
@@ -607,12 +674,12 @@ def bad_tool_position(text, specs):
 
 async def model_turn(run, step):
     messages = build_context(run)
-    estimate = llm.estimate_tokens(messages)
-    if estimate > max(context_limit(run) * 0.70, run.compact_floor):
+    estimate = measured_size(run, messages)
+    if estimate > max(budget.ceiling(context_limit(run)), run.compact_floor):
         done = await compact(run)
         if done:
             messages = build_context(run)
-            estimate = llm.estimate_tokens(messages)
+            estimate = measured_size(run, messages)
             run.compact_floor = estimate + int(context_limit(run) * 0.12)
     run.emit("context", {"tokens": estimate, "limit": context_limit(run)})
 
@@ -627,6 +694,7 @@ async def model_turn(run, step):
         try:
             answer = await llm.stream_chat(run.model, messages, tools=run.tool_specs, on_delta=on_delta, stop_flag=run.stop_flag, effort=run.effort)
             flush_stream(run, step)
+            learn_size(run, messages, answer)
             break
         except llm.ModelError as problem:
             if llm.is_overflow(str(problem)):
@@ -827,6 +895,8 @@ async def run_main(run, first_text):
         run.request = first_text
         if run.local:
             run.local_notes = await local.project_notes(run)
+        if run.model and capability.verdict(run.model.get("key", "")) == "weak":
+            small_model_note(run)
         before = await checkpoints.snapshot(run.wid, "before: " + first_text[:80])
         db.update("runs", "id", run.id, {"checkpoint_before": before})
         run.emit("checkpoint", {"commit": before})
@@ -851,7 +921,10 @@ async def run_main(run, first_text):
             run.tokens_out = run.tokens_out + answer["usage"]["completion_tokens"]
             calls, content, reasoning, leaked, unknown = recover_calls(answer, run.tool_specs)
             if answer.get("model_key"):
-                llm.record_turn(answer["model_key"], bool(calls) or (bool(content.strip()) and not leaked))
+                good_turn = (bool(calls) and not unknown) or (bool(content.strip()) and not leaked)
+                llm.record_turn(answer["model_key"], good_turn)
+                if capability.record(answer["model_key"], good_turn) == "weak":
+                    small_model_note(run)
             if run.stop_flag.is_set():
                 calls = []
             said_meta = {}
@@ -903,6 +976,15 @@ async def run_main(run, first_text):
                         except Exception as problem:
                             problems = []
                             run.emit("notice", {"text": "Document check could not run: " + str(problem)[:160]})
+                    if not problems and not run.local:
+                        try:
+                            problems = await verifier.verify_site(run)
+                        except Exception as problem:
+                            problems = []
+                            run.emit("notice", {"text": "Site check could not run: " + str(problem)[:160]})
+                    if not problems and not run.local:
+                        decks = {path: item["slides"] for path, item in (getattr(run, "doc_stats", {}) or {}).items() if "slides" in item}
+                        problems = claims.check(content, lambda path: sandbox.resolve(run.wid, path).exists(), decks)
                     if problems:
                         gates = gates + 1
                         run.emit("notice", {"text": "Checking the work before finishing: " + str(len(problems)) + " thing(s) to fix."})
@@ -921,12 +1003,16 @@ async def run_main(run, first_text):
                     continue
                 break
             end_turn = False
+            prefetched = await prefetch_parallel(run, calls)
             for call in calls:
-                if run.stop_flag.is_set():
+                if run.stop_flag.is_set() and call["id"] not in prefetched:
                     save_message(run.chat["id"], "tool", "[stopped by the user]", tool_call_id=call["id"], name=call["function"]["name"], meta={"ok": False})
                     run.emit("tool_end", {"id": call["id"], "ok": False, "text": "Stopped", "meta": {}})
                     continue
-                name, args, outcome = await execute_call(run, call)
+                if call["id"] in prefetched:
+                    name, args, outcome = prefetched[call["id"]]
+                else:
+                    name, args, outcome = await execute_call(run, call)
                 track_call(run, name, args, outcome)
                 meta = outcome["meta"]
                 meta["ok"] = outcome["ok"]
