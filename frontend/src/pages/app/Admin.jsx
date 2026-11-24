@@ -459,6 +459,47 @@ function AnnounceTab() {
   )
 }
 
+function ChecksCard() {
+  const { toast } = useStore()
+  const [checks, setChecks] = useState(null)
+  const [busy, setBusy] = useState("")
+  async function run(testModel) {
+    setBusy(testModel ? "model" : "quick")
+    try {
+      const data = await api.post("/api/admin/checks", { test_model: testModel })
+      setChecks(data.checks)
+    } catch (problem) {
+      toast(problem.message, "error")
+    }
+    setBusy("")
+  }
+  const groups = checks ? Array.from(new Set(checks.map((item) => item.group))) : []
+  const failed = checks ? checks.filter((item) => item.ok === false).length : 0
+  return (
+    <Card title="Payments and OpenRouter check" description="Checks your wallet addresses by their checksums, the server's access to each blockchain, and the OpenRouter key. Read-only."
+      action={<div style={{ display: "flex", gap: 6 }}><Button size="sm" variant="ghost" loading={busy === "quick"} onClick={() => run(false)}>Run checks</Button><Button size="sm" variant="ghost" loading={busy === "model"} onClick={() => run(true)}>With a test call</Button></div>}>
+      <div className="fw-card-body">
+        {!checks && <p className="fw-muted fw-small-text">Press Run checks. "With a test call" also sends one tiny message to your first OpenRouter model.</p>}
+        {checks && <p className="fw-small-text" style={{ marginBottom: 10 }}>{failed === 0 ? "Everything checked is working." : failed + " thing(s) need attention."}</p>}
+        {groups.map((group) => (
+          <div key={group} style={{ marginBottom: 12 }}>
+            <div className="fw-muted fw-small-text" style={{ textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{group}</div>
+            {checks.filter((item) => item.group === group).map((item, index) => (
+              <div key={index} className="fw-svc" style={{ alignItems: "flex-start" }}>
+                <span className={cx("fw-svc-dot", item.ok === true ? "is-ok" : item.ok === false ? "is-bad" : "")} style={{ marginTop: 6 }} />
+                <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+                  <span>{item.name}</span>
+                  <span className="fw-muted fw-small-text" style={{ wordBreak: "break-word" }}>{item.detail}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function SystemTab() {
   const [stats, setStats] = useState(null)
   const [status, setStatus] = useState(null)
@@ -468,6 +509,8 @@ function SystemTab() {
   }, [])
   const rows = status ? [["API", status.api], ["Database", status.database], ["AI models", status.models], ["Sandbox image", status.sandbox], ["Email", status.email]] : []
   return (
+    <div className="fw-admin-stack">
+    <ChecksCard />
     <div className="fw-admin-2col is-even">
       <Card title="Services">
         <div className="fw-card-body">
@@ -483,6 +526,7 @@ function SystemTab() {
           {stats && stats.models.map((model) => <div key={model.key} className="fw-svc"><Server size={14} className="fw-muted" /><span className="fw-mono">{model.label}</span><span className="fw-grow" /><span className="fw-muted fw-small-text">{Math.round(model.context / 1000)}k context</span></div>)}
         </div>
       </Card>
+    </div>
     </div>
   )
 }

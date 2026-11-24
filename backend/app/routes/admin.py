@@ -29,6 +29,18 @@ async def treasury_check(request: Request):
         return await treasury.check(client)
 
 
+async def run_checks(request: Request):
+    admin_user(request)
+    import httpx
+    from app import diagnostics
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    async with httpx.AsyncClient() as client:
+        return {"checks": await diagnostics.run(client, test_model=bool((body or {}).get("test_model")))}
+
+
 def overview(request: Request):
     admin_user(request)
     now = db.now()
@@ -221,6 +233,7 @@ def register_routes(app):
     app.add_api_route("/api/admin/announce/audience", announce_audience, methods=["GET"])
     app.add_api_route("/api/admin/overview", overview, methods=["GET"])
     app.add_api_route("/api/admin/treasury", treasury_status, methods=["GET"])
+    app.add_api_route("/api/admin/checks", run_checks, methods=["POST"])
     app.add_api_route("/api/admin/treasury/check", treasury_check, methods=["POST"])
     app.add_api_route("/api/admin/users", users, methods=["GET"])
     app.add_api_route("/api/admin/users/{user_id}", change_user, methods=["POST"])
