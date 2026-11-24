@@ -19,14 +19,62 @@ function shortDate(seconds) {
   return new Date(seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
 }
 
+const COIN_INFO = {
+  USDT: { name: "Tether", glyph: "₮", color: "#26A17B" },
+  USDC: { name: "USD Coin", glyph: "$", color: "#2775CA" },
+  BTC: { name: "Bitcoin", glyph: "₿", color: "#F7931A" },
+}
+const FEE_TEXT = { lowest: "Fee: a few cents", low: "Fee: low", high: "Fee: often several dollars", varies: "Fee: depends on the network" }
+
+function CoinGlyph({ coin, size = 28 }) {
+  const info = COIN_INFO[coin] || { glyph: coin.slice(0, 1), color: "var(--tx-3)" }
+  return <span className="fw-coin" style={{ width: size, height: size, fontSize: size * 0.5, background: info.color }} aria-hidden="true">{info.glyph}</span>
+}
+
+function CoinPicker({ options, value, onChange }) {
+  const coins = Array.from(new Set(options.map((item) => item.coin)))
+  const current = options.find((item) => item.key === value) || options[0]
+  const coin = current ? current.coin : coins[0]
+  const networks = options.filter((item) => item.coin === coin)
+  function pickCoin(next) {
+    const list = options.filter((item) => item.coin === next)
+    const best = list.find((item) => item.recommended) || list[0]
+    if (best) onChange(best.key)
+  }
+  return (
+    <div className="fw-paycoin">
+      <div className="fw-paycoin-coins" role="radiogroup" aria-label="Coin">
+        {coins.map((item) => (
+          <button key={item} type="button" role="radio" aria-checked={item === coin} className={cx("fw-paycoin-coin", item === coin && "is-on")} onClick={() => pickCoin(item)}>
+            <CoinGlyph coin={item} />
+            <span><strong>{item}</strong><small>{(COIN_INFO[item] || {}).name || item}</small></span>
+          </button>
+        ))}
+      </div>
+      {coin !== "BTC" && (
+        <div className="fw-paycoin-nets" role="radiogroup" aria-label="Network">
+          {networks.map((item) => (
+            <button key={item.key} type="button" role="radio" aria-checked={item.key === value} className={cx("fw-paycoin-net", item.key === value && "is-on")} onClick={() => onChange(item.key)}>
+              <span className="fw-paycoin-net-top"><strong>{item.network_label}</strong>{item.standard && <em>{item.standard}</em>}</span>
+              <small className={cx(item.fee === "high" && "is-warn")}>{FEE_TEXT[item.fee] || ""}</small>
+              {item.recommended && <span className="fw-paycoin-tag">Recommended</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CryptoInvoice({ invoice, onPaid }) {
   const { toast } = useStore()
   const [qr, setQr] = useState("")
   const [state, setState] = useState(invoice)
   const [now, setNow] = useState(Date.now() / 1000)
+  const [copied, setCopied] = useState("")
 
   useEffect(() => {
-    QRCode.toDataURL(invoice.address, { margin: 1, width: 200 }).then(setQr).catch(() => setQr(""))
+    QRCode.toDataURL(invoice.address, { margin: 1, width: 360, color: { dark: "#111111", light: "#ffffff" } }).then(setQr).catch(() => setQr(""))
   }, [invoice.address])
 
   useEffect(() => {
@@ -40,44 +88,73 @@ function CryptoInvoice({ invoice, onPaid }) {
           onPaid()
         }
       } catch (problem) {
-        // keep polling
+        // keep waiting; the next poll retries
       }
     }, 8000)
     return () => { clearInterval(clock); clearInterval(poll) }
   }, [invoice.id])
 
   function copy(text, what) {
-    navigator.clipboard.writeText(text).then(() => toast(what + " copied", "success")).catch(() => {})
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(what)
+      toast(what + " copied", "success")
+      setTimeout(() => setCopied(""), 1800)
+    }).catch(() => toast("Copy failed. Select the text and copy it by hand.", "error"))
   }
 
+  const total = Math.max(1, (state.expires_at || 0) - (state.created_at || state.expires_at - 1800))
   const left = Math.max(0, Math.round(state.expires_at - now))
+  const share = Math.max(0, Math.min(100, (left / total) * 100))
   const clock = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0")
+  const network = state.network_label + (state.standard ? " (" + state.standard + ")" : "")
+
   if (state.status === "paid") {
-    return <div className="fw-checkout-summary"><div><CheckCircle2 size={18} /><strong>Payment received. Your plan is on.</strong></div></div>
+    return (
+      <div className="fw-payinv-done">
+        <span className="fw-payinv-done-icon"><CheckCircle2 size={34} /></span>
+        <strong>Payment received</strong>
+        <p>Your plan is on. Taking you to Plan and usage…</p>
+      </div>
+    )
   }
   return (
-    <div className="fw-checkout">
-      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-        {qr && <img src={qr} alt="Wallet address QR code" width={168} height={168} style={{ borderRadius: 8, background: "#fff" }} />}
-        <div style={{ flex: 1, minWidth: 220, display: "grid", gap: 10 }}>
-          <div>
-            <span className="fw-field-label">Send exactly</span>
-            <button type="button" className="fw-checkout-method" onClick={() => copy(state.amount, "Amount")}>
-              <span><strong style={{ fontSize: 20 }}>{state.amount + " " + state.coin}</strong><small>{state.label}</small></span><Copy size={15} />
+    <div className="fw-payinv">
+      <div className="fw-payinv-status">
+        <span className="fw-payinv-pulse" aria-hidden="true" />
+        <span>{left > 0 ? "Waiting for your payment" : "Still watching for 24 hours"}</span>
+        <span className="fw-payinv-clock">{left > 0 ? clock : "late payments count"}</span>
+      </div>
+      <div className="fw-payinv-bar" aria-hidden="true"><i style={{ width: share + "%" }} /></div>
+
+      <div className="fw-payinv-grid">
+        <div className="fw-payinv-qr">
+          {qr ? <img src={qr} alt={"QR code of the " + network + " address"} /> : <div className="fw-payinv-qr-empty" />}
+          <span><CoinGlyph coin={state.coin} size={22} /></span>
+        </div>
+        <div className="fw-payinv-fields">
+          <div className="fw-payinv-field">
+            <span className="fw-payinv-label">Send exactly</span>
+            <button type="button" className={cx("fw-payinv-copy is-amount", copied === "Amount" && "is-copied")} onClick={() => copy(state.amount, "Amount")} aria-label={"Copy amount " + state.amount}>
+              <strong>{state.amount}</strong><em>{state.coin}</em>{copied === "Amount" ? <Check size={16} /> : <Copy size={16} />}
             </button>
           </div>
-          <div>
-            <span className="fw-field-label">To this address</span>
-            <button type="button" className="fw-checkout-method" onClick={() => copy(state.address, "Address")}>
-              <span><small style={{ wordBreak: "break-all", fontFamily: "var(--font-mono, monospace)" }}>{state.address}</small></span><Copy size={15} />
+          <div className="fw-payinv-field">
+            <span className="fw-payinv-label">To this address</span>
+            <button type="button" className={cx("fw-payinv-copy", copied === "Address" && "is-copied")} onClick={() => copy(state.address, "Address")} aria-label="Copy address">
+              <code>{state.address}</code>{copied === "Address" ? <Check size={16} /> : <Copy size={16} />}
             </button>
           </div>
+          <div className="fw-payinv-net"><CoinGlyph coin={state.coin} size={18} /><span>{state.coin + " on " + network}</span></div>
         </div>
       </div>
+
+      <div className="fw-payinv-warn">
+        <TriangleAlert size={16} />
+        <span>{"Use the " + network + " network only. Coins sent on any other network are lost. Send the amount to the last digit: it is how your payment is found. Wallet fees go on top."}</span>
+      </div>
       <ul className="fw-checkout-trust">
-        <li><TriangleAlert size={13} />{"Send on " + state.label + " only. Coins sent on another network are lost."}</li>
-        <li><ShieldCheck size={13} />The exact amount, to the last digit, is how your payment is recognised. If your wallet adds a fee, it must be on top, not taken from the amount.</li>
-        <li><Lock size={13} />{left > 0 ? "Pay within " + clock + ". Your plan turns on by itself a few minutes after the network confirms it." : "The time to pay has ended, but a payment of this exact amount in the next 24 hours still counts. Otherwise start again."}</li>
+        <li><ShieldCheck size={13} />Paid straight to Forkwise's own wallet. No card or account details needed.</li>
+        <li><Lock size={13} />Your plan switches on by itself a few minutes after the network confirms the payment. You can close this window.</li>
       </ul>
     </div>
   )
@@ -100,7 +177,7 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
       setPeriod(yearly ? "year" : "month")
       setBusy(false)
       setInvoice(null)
-      setCoin(coins.length ? coins[0].key : "")
+      setCoin(coins.length ? ((coins.find((item) => item.recommended) || coins[0]).key) : "")
     }
   }, [plan])
 
@@ -154,9 +231,7 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
           {method === "crypto" && coins.length > 0 && (
             <div className="fw-field">
               <span className="fw-field-label">Coin and network</span>
-              <select className="fw-input" value={coin} onChange={(event) => setCoin(event.target.value)}>
-                {coins.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-              </select>
+              <CoinPicker options={coins} value={coin} onChange={setCoin} />
             </div>
           )}
           <div className="fw-checkout-summary">

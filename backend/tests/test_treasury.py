@@ -8,13 +8,13 @@ from app import config, treasury
 def test_plan_math():
     calm = treasury.plan(100.0, 35.0)  # $5 a day, 20 days left
     assert calm["days_left"] == 20.0 and not calm["low"] and calm["top_up"] == 0
-    low = treasury.plan(30.0, 35.0)  # target 52.5, so low; need 2*35 + 5 - 30 = 45
+    low = treasury.plan(30.0, 35.0)  # target 52.5, so low; need 2*35 + 10 - 30 = 50
     assert low["low"] and not low["critical"]
-    assert low["top_up"] == 45 and low["send_usdc"] == 47.25
+    assert low["top_up"] == 50 and low["send_usdc"] == 52.5
     critical = treasury.plan(8.0, 35.0)  # 1.6 days
-    assert critical["critical"] and critical["top_up"] == 70  # 2*35 + 5 - 8 = 67 -> 70
-    quiet = treasury.plan(3.0, 0.0)  # no spending yet: keep the $5 floor
-    assert quiet["low"] and quiet["top_up"] == 5
+    assert critical["critical"] and critical["top_up"] == 75  # 2*35 + 10 - 8 = 72 -> 75
+    quiet = treasury.plan(0.0, 0.0)  # a new account: the $10 that unlocks free models
+    assert quiet["low"] and quiet["top_up"] == 10 and quiet["send_usdc"] == 10.5
     unknown = treasury.plan(None, 10.0)
     assert unknown["balance"] is None and not unknown["low"]
 

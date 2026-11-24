@@ -63,12 +63,19 @@ def rpc_for(chain):
     return os.environ.get("CRYPTO_RPC_" + chain.upper(), "").strip() or CHAINS[chain]["rpc"]
 
 
+NETWORK_LABELS = {"tron": "Tron", "bsc": "BNB Chain", "base": "Base", "polygon": "Polygon", "arbitrum": "Arbitrum", "ethereum": "Ethereum", "bitcoin": "Bitcoin"}
+NETWORK_STANDARD = {"tron": "TRC-20", "bsc": "BEP-20", "base": "", "polygon": "", "arbitrum": "", "ethereum": "ERC-20", "bitcoin": ""}
+FEE = {"tron": "low", "bsc": "lowest", "base": "lowest", "polygon": "lowest", "arbitrum": "lowest", "ethereum": "high", "bitcoin": "varies"}
+RECOMMENDED = {"usdt_tron", "usdc_base"}
+
+
 def options():
     """Payment choices the checkout can offer now: those whose wallet address is set."""
     found = []
     for key, (label, kind, chain, contract, decimals) in OPTIONS.items():
         if address_for(kind):
-            found.append({"key": key, "label": label, "kind": kind, "network": chain})
+            found.append({"key": key, "label": label, "kind": kind, "network": chain, "coin": "BTC" if kind == "btc" else key.split("_")[0].upper(),
+                          "network_label": NETWORK_LABELS[chain], "standard": NETWORK_STANDARD[chain], "fee": FEE[chain], "recommended": key in RECOMMENDED})
     return found
 
 
@@ -204,7 +211,8 @@ def public(row):
     label, kind, chain, contract, decimals = OPTIONS[row["option_key"]]
     coin = "BTC" if kind == "btc" else label.split(" ")[0]
     return {"id": row["id"], "payment_id": row["payment_id"], "option": row["option_key"], "label": label, "coin": coin,
-            "network": chain, "address": row["address"], "amount": display(int(row["units"]), decimals),
+            "network": chain, "network_label": NETWORK_LABELS[chain], "standard": NETWORK_STANDARD[chain], "created_at": row["created_at"],
+            "address": row["address"], "amount": display(int(row["units"]), decimals),
             "expires_at": row["expires_at"], "status": row["status"], "tx": row["tx"]}
 
 

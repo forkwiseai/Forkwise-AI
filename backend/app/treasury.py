@@ -48,7 +48,8 @@ STATE = {"checked_at": 0, "alerted_at": 0, "alerted_kind": "", "last": None}
 
 def plan(balance, burn7):
     """The numbers above, from a balance (or None when unknown) and a weekly burn."""
-    min_balance = setting("TREASURY_MIN_BALANCE", "5")
+    # $10 of purchased credit is also what OpenRouter asks for before it allows 1,000 free-model requests a day.
+    min_balance = setting("TREASURY_MIN_BALANCE", "10")
     target = max(min_balance, burn7 * setting("TREASURY_TARGET_WEEKS", "1.5"))
     daily = burn7 / 7
     result = {"burn7": round(burn7, 4), "daily": round(daily, 4), "target": round(target, 2), "balance": None, "days_left": None, "low": False, "critical": False, "top_up": 0, "send_usdc": 0}
@@ -59,7 +60,7 @@ def plan(balance, burn7):
     result["low"] = balance < target
     result["critical"] = result["days_left"] is not None and result["days_left"] < CRITICAL_DAYS
     if result["low"]:
-        need = max(setting("TREASURY_MIN_PURCHASE", "5"), burn7 * setting("TREASURY_FILL_WEEKS", "2") + min_balance - balance)
+        need = max(setting("TREASURY_MIN_PURCHASE", "10"), burn7 * setting("TREASURY_FILL_WEEKS", "2") + min_balance - balance)
         top_up = math.ceil(need / 5) * 5
         result["top_up"] = top_up
         result["send_usdc"] = math.ceil(top_up * (1 + setting("TREASURY_CRYPTO_FEE", "0.05")) * 100) / 100
