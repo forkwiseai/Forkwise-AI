@@ -15,6 +15,9 @@ class ModelError(Exception):
 def with_cache(messages, model):
     if "claude" not in model["id"].lower() and "anthropic" not in model["id"].lower():
         return messages
+    # Anthropic's own OpenAI-compatible endpoint does not support prompt caching; send it plain text only.
+    if "api.anthropic.com" in str(model.get("url") or ""):
+        return messages
     result = []
     for message in messages:
         if message["role"] == "system" and isinstance(message.get("content"), str):

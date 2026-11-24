@@ -17,15 +17,26 @@ echo "  1) Google AI Studio (Gemini)"
 echo "  2) Groq"
 echo "  3) OpenRouter"
 echo "  4) Cerebras"
-echo "  5) Other (OpenAI compatible)"
-read -r -p "Choose 1-5: " CHOICE </dev/tty
+echo "  5) Anthropic Claude (direct key)"
+echo "  6) xAI Grok (direct key)"
+echo "  7) Other (OpenAI compatible)"
+read -r -p "Choose 1-7: " CHOICE </dev/tty
 
 VISION="false"
+LIST_HEADERS=()
 case "$CHOICE" in
-    1) BASE="https://generativelanguage.googleapis.com/v1beta/openai"; DEFAULT_MODELS="gemini-3.5-flash=Gemini 3.5 Flash,gemini-3.5-flash-lite=Gemini 3.5 Flash-Lite"; VISION="true" ;;
+    1) BASE="https://generativelanguage.googleapis.com/v1beta/openai"; DEFAULT_MODELS="gemini-3.8-flash=Gemini 3.8 Flash"; VISION="true" ;;
     2) BASE="https://api.groq.com/openai/v1"; DEFAULT_MODELS="llama-3.3-70b-versatile=Llama 3.3 70B (Groq)" ;;
     3) BASE="https://openrouter.ai/api/v1"; DEFAULT_MODELS="" ;;
     4) BASE="https://api.cerebras.ai/v1"; DEFAULT_MODELS="" ;;
+    5) BASE="https://api.anthropic.com/v1"; DEFAULT_MODELS="claude-sonnet-5-5=Claude Sonnet 5.5,claude-haiku-5-5=Claude Haiku 5.5"; VISION="true"
+       echo
+       echo "Note: Anthropic's OpenAI-compatible endpoint does not support prompt caching. Claude through this key"
+       echo "costs about 4.4x more per task than Claude through OpenRouter, which passes the cache markers on."
+       echo "Use OpenRouter for Claude until Forkwise speaks Anthropic's native API."
+       read -r -p "Continue with the direct key anyway? (y/n): " GO </dev/tty
+       [ "$GO" = "y" ] || exit 0 ;;
+    6) BASE="https://api.x.ai/v1"; DEFAULT_MODELS="grok-4.7=Grok 4.7,grok-4.3=Grok 4.3" ;;
     *) read -r -p "Base URL (ending in /v1): " BASE </dev/tty; DEFAULT_MODELS="" ;;
 esac
 BASE="${BASE%/}"
@@ -40,7 +51,12 @@ fi
 
 echo
 echo "Asking the provider which models this key can use..."
-LIST="$(curl -s -m 30 -H "Authorization: Bearer $KEY" "$BASE/models" | "$PY" -c "
+if [ "$CHOICE" = "5" ]; then
+    LIST_HEADERS=(-H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01")
+else
+    LIST_HEADERS=(-H "Authorization: Bearer $KEY")
+fi
+LIST="$(curl -s -m 30 "${LIST_HEADERS[@]}" "$BASE/models" | "$PY" -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

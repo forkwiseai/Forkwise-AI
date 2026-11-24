@@ -39,3 +39,8 @@ def test_history_gets_a_cache_breakpoint_for_claude():
     assert out[1]["content"][0]["cache_control"] == {"type": "ephemeral"}
     assert out[3] == messages[3] and out[2] == messages[2]
     assert llm.with_cache(messages, {"id": "google/gemini-3.8-flash"}) == messages
+
+
+def test_no_cache_markers_on_anthropic_openai_endpoint():
+    messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "hi"}]
+    assert llm.with_cache(messages, {"id": "claude-sonnet-5-5", "url": "https://api.anthropic.com/v1"}) == messages
