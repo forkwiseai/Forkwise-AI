@@ -89,7 +89,7 @@ export const FAQ = [
     group: "Security and billing",
     items: [
       ["Is my work private?", "Each workspace runs in its own isolated container that cannot see other users or the server. Read the Security page for details."],
-      ["How do I pay?", "Paid plans are paid in cryptocurrency (USDT, Bitcoin, Ethereum and more) through NOWPayments. Open Plan and usage in the app, choose a plan and you get a payment page. The plan switches on by itself when the payment is confirmed."],
+      ["How do I pay?", "In crypto, from any wallet such as Trust Wallet: USDT, USDC or Bitcoin on the networks listed at checkout. Open Plan and usage in the app, choose a plan, coin and network, and send the exact amount shown. The plan switches on by itself when the network confirms the payment."],
     ],
   },
 ]

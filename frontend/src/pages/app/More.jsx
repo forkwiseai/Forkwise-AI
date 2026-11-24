@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom"
-import { Bitcoin, Check, CheckCircle2, CreditCard, Lock, Mail, RotateCcw, ShieldCheck, Users, MessageSquare, Activity, Cpu } from "lucide-react"
+import { Bitcoin, Check, CheckCircle2, Copy, CreditCard, Lock, Mail, RotateCcw, ShieldCheck, TriangleAlert, Users, MessageSquare, Activity, Cpu } from "lucide-react"
+import QRCode from "qrcode"
 import { Badge, Button, Dialog, Meter, Segmented, Skeleton, Spinner, cx } from "../../dash/kit"
 import { useStore } from "../../lib/store"
 import { api } from "../../lib/api"
@@ -18,6 +19,70 @@ function shortDate(seconds) {
   return new Date(seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
 }
 
+function CryptoInvoice({ invoice, onPaid }) {
+  const { toast } = useStore()
+  const [qr, setQr] = useState("")
+  const [state, setState] = useState(invoice)
+  const [now, setNow] = useState(Date.now() / 1000)
+
+  useEffect(() => {
+    QRCode.toDataURL(invoice.address, { margin: 1, width: 200 }).then(setQr).catch(() => setQr(""))
+  }, [invoice.address])
+
+  useEffect(() => {
+    const clock = setInterval(() => setNow(Date.now() / 1000), 1000)
+    const poll = setInterval(async () => {
+      try {
+        const data = await api.get("/api/billing/invoice/" + invoice.id)
+        setState(data.invoice)
+        if (data.invoice.status === "paid") {
+          clearInterval(poll)
+          onPaid()
+        }
+      } catch (problem) {
+        // keep polling
+      }
+    }, 8000)
+    return () => { clearInterval(clock); clearInterval(poll) }
+  }, [invoice.id])
+
+  function copy(text, what) {
+    navigator.clipboard.writeText(text).then(() => toast(what + " copied", "success")).catch(() => {})
+  }
+
+  const left = Math.max(0, Math.round(state.expires_at - now))
+  const clock = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0")
+  if (state.status === "paid") {
+    return <div className="fw-checkout-summary"><div><CheckCircle2 size={18} /><strong>Payment received. Your plan is on.</strong></div></div>
+  }
+  return (
+    <div className="fw-checkout">
+      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        {qr && <img src={qr} alt="Wallet address QR code" width={168} height={168} style={{ borderRadius: 8, background: "#fff" }} />}
+        <div style={{ flex: 1, minWidth: 220, display: "grid", gap: 10 }}>
+          <div>
+            <span className="fw-field-label">Send exactly</span>
+            <button type="button" className="fw-checkout-method" onClick={() => copy(state.amount, "Amount")}>
+              <span><strong style={{ fontSize: 20 }}>{state.amount + " " + state.coin}</strong><small>{state.label}</small></span><Copy size={15} />
+            </button>
+          </div>
+          <div>
+            <span className="fw-field-label">To this address</span>
+            <button type="button" className="fw-checkout-method" onClick={() => copy(state.address, "Address")}>
+              <span><small style={{ wordBreak: "break-all", fontFamily: "var(--font-mono, monospace)" }}>{state.address}</small></span><Copy size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+      <ul className="fw-checkout-trust">
+        <li><TriangleAlert size={13} />{"Send on " + state.label + " only. Coins sent on another network are lost."}</li>
+        <li><ShieldCheck size={13} />The exact amount, to the last digit, is how your payment is recognised. If your wallet adds a fee, it must be on top, not taken from the amount.</li>
+        <li><Lock size={13} />{left > 0 ? "Pay within " + clock + ". Your plan turns on by itself a few minutes after the network confirms it." : "The time to pay has ended, but a payment of this exact amount in the next 24 hours still counts. Otherwise start again."}</li>
+      </ul>
+    </div>
+  )
+}
+
 function CheckoutDialog({ plan, yearly, info, onClose }) {
   const { toast, user } = useStore()
   const methods = (info && info.methods) || []
@@ -25,12 +90,17 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
   const [method, setMethod] = useState(firstOn)
   const [period, setPeriod] = useState(yearly ? "year" : "month")
   const [busy, setBusy] = useState(false)
+  const [invoice, setInvoice] = useState(null)
+  const coins = ((methods.find((item) => item.key === "crypto") || {}).coins) || []
+  const [coin, setCoin] = useState("")
 
   useEffect(() => {
     if (plan) {
       setMethod(firstOn)
       setPeriod(yearly ? "year" : "month")
       setBusy(false)
+      setInvoice(null)
+      setCoin(coins.length ? coins[0].key : "")
     }
   }, [plan])
 
@@ -42,7 +112,12 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
   async function pay() {
     setBusy(true)
     try {
-      const data = await api.post("/api/billing/checkout", { plan: plan.key, period, method })
+      const data = await api.post("/api/billing/checkout", { plan: plan.key, period, method, coin })
+      if (data.invoice) {
+        setInvoice(data.invoice)
+        setBusy(false)
+        return
+      }
       window.location.href = data.url
     } catch (problem) {
       toast(problem.message, "error")
@@ -51,9 +126,10 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
   }
 
   return (
-    <Dialog open={Boolean(plan)} onClose={onClose} size="md" title={plan ? "Upgrade to " + plan.name : ""} description="You'll finish on a secure payment page. Your card details never touch Forkwise servers."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" icon={Lock} loading={busy} disabled={!chosen.enabled} onClick={pay}>{"Continue to payment · $" + total}</Button></>}>
-      {plan && (
+    <Dialog open={Boolean(plan)} onClose={onClose} size="md" title={plan ? "Upgrade to " + plan.name : ""} description={invoice ? "Pay from any wallet, for example Trust Wallet. The payment goes straight to Forkwise's wallet." : method === "card" ? "You'll finish on a secure payment page. Your card details never touch Forkwise servers." : "Choose a coin and network. You'll get an address and an exact amount to send."}
+      footer={invoice ? <Button variant="ghost" onClick={onClose}>Close</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" icon={Lock} loading={busy} disabled={!chosen.enabled || (method === "crypto" && !coin)} onClick={pay}>{"Continue to payment · $" + total}</Button></>}>
+      {plan && invoice && <CryptoInvoice invoice={invoice} onPaid={() => { setTimeout(() => window.location.assign("/app/billing?paid=1"), 1500) }} />}
+      {plan && !invoice && (
         <div className="fw-checkout">
           <div className="fw-checkout-periods" role="radiogroup">
             {["month", "year"].map((value) => (
@@ -69,19 +145,27 @@ function CheckoutDialog({ plan, yearly, info, onClose }) {
               {methods.map((item) => (
                 <button key={item.key} type="button" disabled={!item.enabled} className={cx("fw-checkout-method", method === item.key && "is-on")} onClick={() => setMethod(item.key)}>
                   {item.key === "card" ? <CreditCard size={16} /> : <Bitcoin size={16} />}
-                  <span><strong>{item.key === "card" ? "Card" : "Crypto"}</strong><small>{item.key === "card" ? "Visa, Mastercard, Amex, PayPal, Apple Pay" : "USDT, Bitcoin, Ethereum and more"}</small></span>
+                  <span><strong>{item.key === "card" ? "Card" : "Crypto"}</strong><small>{item.key === "card" ? "Visa, Mastercard, Amex, PayPal, Apple Pay" : "USDT, USDC or Bitcoin, from any wallet"}</small></span>
                   {!item.enabled && <Badge>Soon</Badge>}
                 </button>
               ))}
             </div>
           </div>
+          {method === "crypto" && coins.length > 0 && (
+            <div className="fw-field">
+              <span className="fw-field-label">Coin and network</span>
+              <select className="fw-input" value={coin} onChange={(event) => setCoin(event.target.value)}>
+                {coins.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+              </select>
+            </div>
+          )}
           <div className="fw-checkout-summary">
             <div><span>{plan.name} · {period === "year" ? "12 months" : "30 days"}</span><span>${total}</span></div>
             {period === "year" && <div className="fw-muted"><span>That's ${perMonth} a month</span><span /></div>}
             <div className="fw-checkout-total"><span>Due today</span><strong>${total}</strong></div>
           </div>
           <ul className="fw-checkout-trust">
-            <li><ShieldCheck size={13} />{method === "card" ? "Processed by Lemon Squeezy, our merchant of record. Taxes are added at checkout where required." : "Processed by NOWPayments. Your plan turns on when the network confirms the payment."}</li>
+            <li><ShieldCheck size={13} />{method === "card" ? "Processed by Lemon Squeezy, our merchant of record. Taxes are added at checkout where required." : "Paid straight to Forkwise's wallet. Your plan turns on by itself when the network confirms the payment."}</li>
             <li><Mail size={13} />A receipt goes to {user.email}.</li>
             <li><RotateCcw size={13} />No automatic renewal. Pay again any time to extend.</li>
           </ul>

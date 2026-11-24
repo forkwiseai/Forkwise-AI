@@ -5,10 +5,9 @@ import httpx
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from app import db, config, plans, notify
+from app import db, config, plans, notify, crypto_pay
 from app.routes.auth import current_user
 
-INVOICE_URL = "https://api.nowpayments.io/v1/invoice"
 LEMON_URL = "https://api.lemonsqueezy.com/v1/checkouts"
 
 
@@ -16,10 +15,16 @@ class CheckoutBody(BaseModel):
     plan: str
     period: str = "month"
     method: str = ""
+    coin: str = ""
+
+
+def nowpayments_ready():
+    # Kept only so invoices made before the switch to Forkwise's own checkout still activate.
+    return config.NOWPAYMENTS_API_KEY != "" and config.NOWPAYMENTS_IPN_SECRET != ""
 
 
 def crypto_enabled():
-    return config.NOWPAYMENTS_API_KEY != "" and config.NOWPAYMENTS_IPN_SECRET != ""
+    return crypto_pay.enabled()
 
 
 def card_enabled():
@@ -33,7 +38,7 @@ def enabled():
 def methods():
     return [
         {"key": "card", "label": "Card, PayPal, Apple Pay", "enabled": card_enabled()},
-        {"key": "crypto", "label": "Crypto", "enabled": crypto_enabled()},
+        {"key": "crypto", "label": "Crypto", "enabled": crypto_enabled(), "coins": crypto_pay.options()},
     ]
 
 
@@ -112,31 +117,49 @@ async def checkout(body: CheckoutBody, request: Request):
         return await card_checkout(user, body, amount)
     if not crypto_enabled():
         raise HTTPException(status_code=503, detail="Crypto payments are not switched on yet.")
+    coins = [item["key"] for item in crypto_pay.options()]
+    coin = body.coin if body.coin in coins else (coins[0] if coins else "")
     payment_id = db.new_id("pay_")
-    label = "Forkwise " + body.plan.capitalize() + (" yearly" if body.period == "year" else " monthly")
-    data = {
-        "price_amount": amount,
-        "price_currency": "usd",
-        "order_id": payment_id,
-        "order_description": label,
-        "ipn_callback_url": config.API_URL + "/api/billing/ipn",
-        "success_url": config.SITE_URL + "/app/billing?paid=1",
-        "cancel_url": config.SITE_URL + "/app/billing",
-    }
+    payment = {"id": payment_id, "user_id": user["id"], "plan": body.plan, "period": body.period, "amount": amount, "status": "created", "invoice_id": "own", "invoice_url": "", "created_at": db.now(), "paid_at": 0}
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            reply = await client.post(INVOICE_URL, json=data, headers={"x-api-key": config.NOWPAYMENTS_API_KEY})
+        invoice = await crypto_pay.create_invoice(payment, coin)
+    except (ValueError, RuntimeError) as problem:
+        raise HTTPException(status_code=400, detail=str(problem))
     except httpx.HTTPError:
-        raise HTTPException(status_code=502, detail="Could not reach the payment service. Try again in a minute.")
-    if reply.status_code >= 300:
-        print("NOWPAYMENTS FAILED", reply.status_code, reply.text[:300], flush=True)
-        raise HTTPException(status_code=502, detail="The payment service refused the request.")
-    invoice = reply.json()
-    url = invoice.get("invoice_url") or ""
-    if url == "":
-        raise HTTPException(status_code=502, detail="The payment service gave no payment page.")
-    db.insert("payments", {"id": payment_id, "user_id": user["id"], "plan": body.plan, "period": body.period, "amount": amount, "status": "created", "invoice_id": str(invoice.get("id") or ""), "invoice_url": url, "created_at": db.now(), "paid_at": 0})
-    return {"url": url}
+        raise HTTPException(status_code=502, detail="Could not reach the network to price this payment. Try again in a minute.")
+    payment["invoice_id"] = invoice["id"]
+    db.insert("payments", payment)
+    return {"invoice": invoice}
+
+
+def invoice_status(invoice_id: str, request: Request):
+    user = current_user(request)
+    row = db.one_row("SELECT * FROM crypto_invoices WHERE id = ? AND user_id = ?", (invoice_id, user["id"]))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    return {"invoice": crypto_pay.public(row), "plan": plans.active_plan(db.one_row("SELECT * FROM users WHERE id = ?", (user["id"],)))}
+
+
+def admin_confirm(invoice_id: str, request: Request):
+    """For a payment that arrived but did not match (wrong amount, late): the admin checks the wallet and confirms."""
+    user = current_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admins only.")
+    row = db.one_row("SELECT * FROM crypto_invoices WHERE id = ?", (invoice_id,))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    db.execute("UPDATE crypto_invoices SET status = 'created' WHERE id = ? AND status = 'expired'", (invoice_id,))
+    crypto_pay.mark_paid(dict(row, status="created"), "manual:" + user["id"])
+    return {"ok": True}
+
+
+def admin_crypto(request: Request):
+    user = current_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admins only.")
+    invoices = db.all_rows("SELECT * FROM crypto_invoices ORDER BY created_at DESC LIMIT 100")
+    unmatched = db.all_rows("SELECT * FROM crypto_seen WHERE invoice_id = '' ORDER BY seen_at DESC LIMIT 100")
+    return {"invoices": [dict(crypto_pay.public(row), user_id=row["user_id"], created_at=row["created_at"]) for row in invoices], "unmatched": unmatched}
 
 
 def signature_ok(raw_body, header):
@@ -152,7 +175,7 @@ def signature_ok(raw_body, header):
 
 
 async def ipn(request: Request):
-    if not crypto_enabled():
+    if not nowpayments_ready():
         return JSONResponse({"ok": False}, status_code=503)
     raw = await request.body()
     data = signature_ok(raw, request.headers.get("x-nowpayments-sig"))
@@ -218,3 +241,6 @@ def register_routes(app):
     app.add_api_route("/api/billing", billing_info, methods=["GET"])
     app.add_api_route("/api/billing/checkout", checkout, methods=["POST"])
     app.add_api_route("/api/billing/ipn", ipn, methods=["POST"])
+    app.add_api_route("/api/billing/invoice/{invoice_id}", invoice_status, methods=["GET"])
+    app.add_api_route("/api/admin/crypto", admin_crypto, methods=["GET"])
+    app.add_api_route("/api/admin/crypto/{invoice_id}/confirm", admin_confirm, methods=["POST"])

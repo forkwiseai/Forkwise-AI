@@ -241,6 +241,34 @@ CREATE TABLE IF NOT EXISTS status_samples (
     ts REAL PRIMARY KEY,
     ok INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS crypto_invoices (
+    id TEXT PRIMARY KEY,
+    payment_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    option_key TEXT NOT NULL,
+    address TEXT NOT NULL,
+    units TEXT NOT NULL,
+    base_units TEXT NOT NULL,
+    bump INTEGER NOT NULL,
+    start_block INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    reserved_until REAL NOT NULL,
+    status TEXT NOT NULL,
+    tx TEXT NOT NULL DEFAULT '',
+    paid_at REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS crypto_seen (
+    tx_key TEXT PRIMARY KEY,
+    option_key TEXT NOT NULL,
+    units TEXT NOT NULL,
+    invoice_id TEXT NOT NULL DEFAULT '',
+    seen_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS crypto_state (
+    chain TEXT PRIMARY KEY,
+    height INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS usage_cost (
     user_id TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -534,6 +562,34 @@ MYSQL_TABLES = [
 """CREATE TABLE IF NOT EXISTS status_samples (
     ts DOUBLE PRIMARY KEY,
     ok INT NOT NULL
+)""",
+"""CREATE TABLE IF NOT EXISTS crypto_invoices (
+    id VARCHAR(64) PRIMARY KEY,
+    payment_id VARCHAR(64) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    option_key VARCHAR(32) NOT NULL,
+    address VARCHAR(128) NOT NULL,
+    units VARCHAR(80) NOT NULL,
+    base_units VARCHAR(80) NOT NULL,
+    bump INT NOT NULL,
+    start_block BIGINT NOT NULL DEFAULT 0,
+    created_at DOUBLE NOT NULL,
+    expires_at DOUBLE NOT NULL,
+    reserved_until DOUBLE NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    tx VARCHAR(200) NOT NULL DEFAULT '',
+    paid_at DOUBLE NOT NULL DEFAULT 0
+)""",
+"""CREATE TABLE IF NOT EXISTS crypto_seen (
+    tx_key VARCHAR(200) PRIMARY KEY,
+    option_key VARCHAR(32) NOT NULL,
+    units VARCHAR(80) NOT NULL,
+    invoice_id VARCHAR(64) NOT NULL DEFAULT '',
+    seen_at DOUBLE NOT NULL
+)""",
+"""CREATE TABLE IF NOT EXISTS crypto_state (
+    chain VARCHAR(32) PRIMARY KEY,
+    height BIGINT NOT NULL
 )""",
 """CREATE TABLE IF NOT EXISTS usage_cost (
     user_id VARCHAR(64) NOT NULL,
