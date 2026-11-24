@@ -543,24 +543,41 @@
 
 /* crypto checkout */
 .fw .fw-coin { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 50%; color: #fff; font-weight: 600; line-height: 1; }
-.fw .fw-paycoin { display: grid; gap: 10px; }
-.fw .fw-paycoin-coins { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-.fw .fw-paycoin-coin { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); text-align: start; transition: border-color 0.12s, background-color 0.12s, transform 0.12s; }
-.fw .fw-paycoin-coin span { display: grid; gap: 1px; }
-.fw .fw-paycoin-coin strong { font-size: 14px; font-weight: 600; }
-.fw .fw-paycoin-coin small { font-size: 11.5px; color: var(--tx-3); }
-.fw .fw-paycoin-coin:hover { border-color: var(--line-3); }
-.fw .fw-paycoin-coin.is-on { border-color: var(--tx); background: var(--bg-3); }
-.fw .fw-paycoin-nets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.fw .fw-paycoin-net { position: relative; display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); text-align: start; transition: border-color 0.12s, background-color 0.12s; }
-.fw .fw-paycoin-net:hover { border-color: var(--line-3); }
-.fw .fw-paycoin-net.is-on { border-color: var(--tx); background: var(--bg-3); }
-.fw .fw-paycoin-net-top { display: flex; align-items: baseline; gap: 6px; }
-.fw .fw-paycoin-net-top strong { font-size: 13.5px; font-weight: 600; }
-.fw .fw-paycoin-net-top em { font-style: normal; font-size: 11px; color: var(--tx-3); }
-.fw .fw-paycoin-net small { font-size: 11.5px; color: var(--tx-3); }
-.fw .fw-paycoin-net small.is-warn { color: #b7791f; }
-.fw .fw-paycoin-tag { position: absolute; bottom: 9px; inset-inline-end: 9px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; background: rgba(47, 182, 124, 0.16); color: #2fb67c; }
+.fw .fw-paycoin { display: grid; gap: 12px; }
+.fw .fw-seg { position: relative; display: grid; grid-template-columns: repeat(var(--seg-n), 1fr); padding: 4px; border-radius: 12px; background: var(--bg-0, var(--bg-1)); border: 1px solid var(--line); isolation: isolate; }
+.fw .fw-seg-thumb { position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--seg-n)); border-radius: 9px; background: var(--bg-3); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--line-2); transform: translateX(calc(var(--seg-i) * 100%)); transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+html[data-theme="light"] .fw .fw-seg { background: rgba(0, 0, 0, 0.04); }
+html[data-theme="light"] .fw .fw-seg-thumb { background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), inset 0 0 0 1px rgba(0, 0, 0, 0.06); }
+.fw .fw-seg-item { display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 9px; color: var(--tx-3); transition: color 0.2s; }
+.fw .fw-seg-item strong { font-size: 13.5px; font-weight: 600; letter-spacing: 0.01em; }
+.fw .fw-seg-item .fw-coin { opacity: 0.55; transform: scale(0.9); transition: opacity 0.2s, transform 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+.fw .fw-seg-item:hover { color: var(--tx-2); }
+.fw .fw-seg-item.is-on { color: var(--tx); }
+.fw .fw-seg-item.is-on .fw-coin { opacity: 1; transform: scale(1); }
+.fw .fw-seg-item:focus-visible { outline: 2px solid var(--tx); outline-offset: -2px; }
+.fw .fw-netlist { display: grid; gap: 6px; }
+.fw .fw-netrow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-2); text-align: start; transition: border-color 0.18s, background-color 0.18s; animation: fw-row-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both; animation-delay: calc(var(--row) * 45ms); }
+@keyframes fw-row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fw .fw-netrow:hover { border-color: var(--line-3); }
+.fw .fw-netrow.is-on { border-color: var(--tx); background: var(--bg-3); }
+html[data-theme="light"] .fw .fw-netrow.is-on { background: rgba(0, 0, 0, 0.03); }
+.fw .fw-netrow-radio { position: relative; flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line-3); transition: border-color 0.18s; }
+.fw .fw-netrow-radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--tx); transform: scale(0); transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.fw .fw-netrow.is-on .fw-netrow-radio { border-color: var(--tx); }
+.fw .fw-netrow.is-on .fw-netrow-radio::after { transform: scale(1); }
+.fw .fw-netrow-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.fw .fw-netrow-name strong { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.fw .fw-netrow-name em { font-style: normal; font-size: 11.5px; color: var(--tx-3); white-space: nowrap; }
+.fw .fw-netrow-side { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; flex-wrap: wrap; justify-content: flex-end; }
+.fw .fw-netrow-side small { font-size: 12px; color: var(--tx-3); white-space: nowrap; }
+.fw .fw-netrow-side small.is-good { color: #2fb67c; }
+.fw .fw-netrow-side small.is-warn { color: #e3b04b; }
+html[data-theme="light"] .fw .fw-netrow-side small.is-good { color: #1f8a5b; }
+html[data-theme="light"] .fw .fw-netrow-side small.is-warn { color: #9a6514; }
+.fw .fw-netrow-tag { padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; background: rgba(47, 182, 124, 0.15); color: #2fb67c; white-space: nowrap; }
+html[data-theme="light"] .fw .fw-netrow-tag { color: #1f8a5b; background: rgba(31, 138, 91, 0.1); }
+@media (prefers-reduced-motion: reduce) { .fw .fw-seg-thumb, .fw .fw-netrow, .fw .fw-netrow-radio::after, .fw .fw-seg-item .fw-coin { transition: none; animation: none; } }
+@media (max-width: 420px) { .fw .fw-netrow-side small:not(.is-warn) { display: none; } }
 .fw .fw-payinv { display: grid; gap: 14px; }
 .fw .fw-payinv-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
 .fw .fw-payinv-clock { margin-inline-start: auto; font-variant-numeric: tabular-nums; color: var(--tx-3); font-weight: 400; }
@@ -595,3 +612,5 @@ html[data-theme="light"] .fw .fw-paycoin-net small.is-warn { color: #9a6514; }
 .fw .fw-payinv-done-icon { color: #2fb67c; }
 .fw .fw-payinv-done strong { font-size: 17px; font-weight: 600; }
 .fw .fw-payinv-done p { font-size: 13px; color: var(--tx-3); }
+.fw .fw-netrow:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
+.fw .fw-netrow:focus:not(:focus-visible), .fw .fw-seg-item:focus:not(:focus-visible) { outline: none; }

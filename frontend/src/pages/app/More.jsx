@@ -24,7 +24,7 @@ const COIN_INFO = {
   USDC: { name: "USD Coin", glyph: "$", color: "#2775CA" },
   BTC: { name: "Bitcoin", glyph: "₿", color: "#F7931A" },
 }
-const FEE_TEXT = { lowest: "Fee: a few cents", low: "Fee: low", high: "Fee: often several dollars", varies: "Fee: depends on the network" }
+const FEE_TEXT = { lowest: "Fee a few cents", low: "Low fee", high: "Fee often several dollars", varies: "Fee depends on the network" }
 
 function CoinGlyph({ coin, size = 28 }) {
   const info = COIN_INFO[coin] || { glyph: coin.slice(0, 1), color: "var(--tx-3)" }
@@ -35,33 +35,46 @@ function CoinPicker({ options, value, onChange }) {
   const coins = Array.from(new Set(options.map((item) => item.coin)))
   const current = options.find((item) => item.key === value) || options[0]
   const coin = current ? current.coin : coins[0]
-  const networks = options.filter((item) => item.coin === coin)
+  const index = Math.max(0, coins.indexOf(coin))
+  const networks = options.filter((item) => item.coin === coin).sort((a, b) => Number(b.recommended) - Number(a.recommended))
   function pickCoin(next) {
+    if (next === coin) return
     const list = options.filter((item) => item.coin === next)
     const best = list.find((item) => item.recommended) || list[0]
     if (best) onChange(best.key)
   }
+  function onKey(event) {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+    if (!step) return
+    event.preventDefault()
+    pickCoin(coins[(index + step + coins.length) % coins.length])
+  }
   return (
     <div className="fw-paycoin">
-      <div className="fw-paycoin-coins" role="radiogroup" aria-label="Coin">
+      <div className="fw-seg" role="radiogroup" aria-label="Coin" onKeyDown={onKey} style={{ "--seg-n": coins.length, "--seg-i": index }}>
+        <span className="fw-seg-thumb" aria-hidden="true" />
         {coins.map((item) => (
-          <button key={item} type="button" role="radio" aria-checked={item === coin} className={cx("fw-paycoin-coin", item === coin && "is-on")} onClick={() => pickCoin(item)}>
-            <CoinGlyph coin={item} />
-            <span><strong>{item}</strong><small>{(COIN_INFO[item] || {}).name || item}</small></span>
+          <button key={item} type="button" role="radio" aria-checked={item === coin} tabIndex={item === coin ? 0 : -1} className={cx("fw-seg-item", item === coin && "is-on")} onClick={() => pickCoin(item)}>
+            <CoinGlyph coin={item} size={20} />
+            <strong>{item}</strong>
           </button>
         ))}
       </div>
-      {coin !== "BTC" && (
-        <div className="fw-paycoin-nets" role="radiogroup" aria-label="Network">
-          {networks.map((item) => (
-            <button key={item.key} type="button" role="radio" aria-checked={item.key === value} className={cx("fw-paycoin-net", item.key === value && "is-on")} onClick={() => onChange(item.key)}>
-              <span className="fw-paycoin-net-top"><strong>{item.network_label}</strong>{item.standard && <em>{item.standard}</em>}</span>
-              <small className={cx(item.fee === "high" && "is-warn")}>{FEE_TEXT[item.fee] || ""}</small>
-              {item.recommended && <span className="fw-paycoin-tag">Recommended</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="fw-netlist" role="radiogroup" aria-label="Network" key={coin}>
+        {networks.map((item, order) => (
+          <button key={item.key} type="button" role="radio" aria-checked={item.key === value} className={cx("fw-netrow", item.key === value && "is-on")} style={{ "--row": order }} onClick={() => onChange(item.key)}>
+            <span className="fw-netrow-radio" aria-hidden="true" />
+            <span className="fw-netrow-name">
+              <strong>{item.network_label}</strong>
+              {item.standard && <em>{item.standard}</em>}
+            </span>
+            <span className="fw-netrow-side">
+              {item.recommended && <span className="fw-netrow-tag">Recommended</span>}
+              <small className={cx(item.fee === "high" && "is-warn", (item.fee === "lowest" || item.fee === "low") && "is-good")}>{FEE_TEXT[item.fee] || ""}</small>
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
