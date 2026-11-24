@@ -241,6 +241,13 @@ CREATE TABLE IF NOT EXISTS status_samples (
     ts REAL PRIMARY KEY,
     ok INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS usage_cost (
+    user_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    micros INTEGER NOT NULL DEFAULT 0,
+    cached INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+);
 CREATE TABLE IF NOT EXISTS usage_daily (
     user_id TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -528,6 +535,13 @@ MYSQL_TABLES = [
     ts DOUBLE PRIMARY KEY,
     ok INT NOT NULL
 )""",
+"""CREATE TABLE IF NOT EXISTS usage_cost (
+    user_id VARCHAR(64) NOT NULL,
+    day VARCHAR(10) NOT NULL,
+    micros BIGINT NOT NULL DEFAULT 0,
+    cached BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+)""",
 """CREATE TABLE IF NOT EXISTS usage_daily (
     user_id VARCHAR(64) NOT NULL,
     day VARCHAR(10) NOT NULL,
@@ -780,6 +794,25 @@ def add_usage(user_id, tokens_in, tokens_out, new_run):
         "tokens_out = tokens_out + excluded.tokens_out, runs = runs + excluded.runs",
         (user_id, day, tokens_in, tokens_out, runs),
     )
+
+
+def add_cost(user_id, dollars, cached_tokens=0):
+    """Money spent on models for this user today, kept in millionths of a dollar."""
+    micros = int(round(dollars * 1_000_000))
+    if micros <= 0 and cached_tokens <= 0:
+        return
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    if use_mysql():
+        execute("INSERT INTO usage_cost (user_id, day, micros, cached) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE micros = micros + VALUES(micros), cached = cached + VALUES(cached)", (user_id, day, micros, cached_tokens))
+        return
+    execute("INSERT INTO usage_cost (user_id, day, micros, cached) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET micros = micros + excluded.micros, cached = cached + excluded.cached", (user_id, day, micros, cached_tokens))
+
+
+def spent(user_id, days=1):
+    """Dollars spent over the last `days` days, today included."""
+    first = time.strftime("%Y-%m-%d", time.gmtime(time.time() - (days - 1) * 86400))
+    row = one_row("SELECT COALESCE(SUM(micros), 0) AS total FROM usage_cost WHERE user_id = ? AND day >= ?", (user_id, first))
+    return int((row or {}).get("total") or 0) / 1_000_000
 
 
 def usage_today(user_id):

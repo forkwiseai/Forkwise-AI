@@ -21,6 +21,25 @@ def with_cache(messages, model):
             result.append({"role": "system", "content": [{"type": "text", "text": message["content"], "cache_control": {"type": "ephemeral"}}]})
         else:
             result.append(message)
+    # Second breakpoint at the newest user or assistant text, so the history before it is read from cache on the next
+    # step (5% of the input price on the 5.5 models) instead of paid in full every step: about 4.4x cheaper per task
+    # (bench/economics.py). Tool messages are skipped because not every gateway accepts content blocks there.
+    for index in range(len(result) - 1, 0, -1):
+        message = result[index]
+        if message.get("role") not in ("user", "assistant"):
+            continue
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            result[index] = dict(message, content=[{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}])
+            break
+        if isinstance(content, list):
+            texts = [part for part in content if isinstance(part, dict) and part.get("type") == "text" and part.get("text")]
+            if texts:
+                parts = [dict(part) for part in content]
+                last = max(i for i, part in enumerate(parts) if part.get("type") == "text" and part.get("text"))
+                parts[last]["cache_control"] = {"type": "ephemeral"}
+                result[index] = dict(message, content=parts)
+                break
     return result
 
 
@@ -579,6 +598,7 @@ async def finish_cut_answer(model, body, on_delta, stop_flag, result):
             "usage": {
                 "prompt_tokens": result["usage"]["prompt_tokens"] + more["usage"]["prompt_tokens"],
                 "completion_tokens": result["usage"]["completion_tokens"] + more["usage"]["completion_tokens"],
+                "cached_tokens": result["usage"].get("cached_tokens", 0) + more["usage"].get("cached_tokens", 0),
             },
             "finish": more["finish"],
         }
@@ -821,7 +841,7 @@ async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=Non
     content = []
     reasoning = []
     calls = {}
-    usage = {"prompt_tokens": 0, "completion_tokens": 0}
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
     finish = ""
     ended = {"done": False}
     last_index = 0
@@ -878,6 +898,8 @@ async def stream_once(model, body, on_delta, streamed, stop_flag, first_wait=Non
                     found = packet["usage"]
                     usage["prompt_tokens"] = found.get("prompt_tokens") or usage["prompt_tokens"]
                     usage["completion_tokens"] = found.get("completion_tokens") or usage["completion_tokens"]
+                    details = found.get("prompt_tokens_details") or {}
+                    usage["cached_tokens"] = details.get("cached_tokens") or found.get("cache_read_input_tokens") or usage.get("cached_tokens", 0)
                 choices = packet.get("choices") or []
                 if len(choices) == 0:
                     continue

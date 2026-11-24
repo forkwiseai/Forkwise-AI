@@ -323,6 +323,8 @@ def check_limit(user, model=None):
     used = db.usage_today(user["id"])
     if used["tokens_in"] + used["tokens_out"] >= limit:
         raise HTTPException(status_code=429, detail="You reached today's usage limit. Upgrade your plan in Plan and usage for more.")
+    if plans.over_budget(user, model):
+        raise HTTPException(status_code=429, detail="You used this plan's model budget for now. It refills daily; upgrade in Plan and usage for more.")
 
 
 async def send_message(chat_id: str, body: NewMessage, request: Request):

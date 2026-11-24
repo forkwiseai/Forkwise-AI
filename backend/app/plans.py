@@ -23,3 +23,23 @@ def limits():
 
 def daily_limit(user):
     return max(0, limits()[active_plan(user)])
+
+
+def budget(user):
+    from app import pricing
+    plan = active_plan(user)
+    return {"plan": plan, "monthly": pricing.monthly_budget(plan, PRICES), "daily": pricing.daily_budget(plan, PRICES)}
+
+
+def money_left(user):
+    """Dollars this user may still spend now: the smaller of what is left today and in the last 30 days."""
+    limits_now = budget(user)
+    today = db.spent(user["id"], 1)
+    month = db.spent(user["id"], 30)
+    return min(limits_now["daily"] - today, limits_now["monthly"] - month)
+
+
+def over_budget(user, model=None):
+    if (model and model.get("own")) or user.get("is_admin"):
+        return False
+    return money_left(user) <= 0

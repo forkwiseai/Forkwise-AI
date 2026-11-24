@@ -3,7 +3,7 @@ import re
 import json
 import time
 import traceback
-from app import db, config
+from app import db, config, pricing
 from app.agent import verifier, toolcatalog, budget, capability, claims
 from app.agent import llm, tools, specs, prompt, checkpoints, sandbox, integrations, local, leaks
 
@@ -53,12 +53,16 @@ class Run:
         self.request_text = ""
         self.limit = 0
         self.used_before = 0
+        self.cost = 0.0
+        self.cached_tokens = 0
+        self.money_left = None
         if user and not user.get("is_admin") and not (model and model.get("own")):
             from app import plans
             self.limit = plans.daily_limit(user)
             if self.limit > 0:
                 used = db.usage_today(user["id"])
                 self.used_before = int(used.get("tokens_in") or 0) + int(used.get("tokens_out") or 0)
+            self.money_left = plans.money_left(user)
 
     def emit(self, kind, data=None):
         event = {"seq": len(self.events), "type": kind, "time": time.time()}
@@ -395,6 +399,16 @@ async def compact(run, forced=False):
     save_message(run.chat["id"], "summary", summary, created=first_kept - 0.0005)
     run.emit("compacted", {"summary": summary[:3000]})
     return True
+
+
+def charge(run, answer):
+    """Adds the dollar cost of one model answer, priced for the model that really answered (after failover)."""
+    usage = answer.get("usage") or {}
+    key = answer.get("model_key") or (run.model or {}).get("key", "")
+    model_id = key.split(":", 1)[-1] if key else (run.model or {}).get("id", "")
+    cached = int(usage.get("cached_tokens") or 0)
+    run.cached_tokens = getattr(run, "cached_tokens", 0) + cached
+    run.cost = getattr(run, "cost", 0.0) + pricing.cost(model_id, usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0, cached, own_key=bool((run.model or {}).get("own")))
 
 
 def small_model_note(run):
@@ -919,6 +933,7 @@ async def run_main(run, first_text):
             answer = await model_turn(run, step)
             run.tokens_in = run.tokens_in + answer["usage"]["prompt_tokens"]
             run.tokens_out = run.tokens_out + answer["usage"]["completion_tokens"]
+            charge(run, answer)
             calls, content, reasoning, leaked, unknown = recover_calls(answer, run.tool_specs)
             if answer.get("model_key"):
                 good_turn = (bool(calls) and not unknown) or (bool(content.strip()) and not leaked)
@@ -941,6 +956,10 @@ async def run_main(run, first_text):
                 break
             if run.limit > 0 and run.used_before + run.tokens_in + run.tokens_out >= run.limit:
                 run.emit("notice", {"text": "You reached today's usage limit, so the task stopped here. It resets tomorrow, or upgrade your plan for more."})
+                status = "stopped"
+                break
+            if run.money_left is not None and run.cost >= run.money_left:
+                run.emit("notice", {"text": "This plan's model budget is used up for now, so the task stopped here. It refills daily, or upgrade your plan for more."})
                 status = "stopped"
                 break
             if len(calls) == 0:
@@ -1058,6 +1077,10 @@ async def run_main(run, first_text):
         db.add_usage(run.user["id"], 0, 0, True)
     else:
         db.add_usage(run.user["id"], run.tokens_in, run.tokens_out, True)
+    try:
+        db.add_cost(run.user["id"], getattr(run, "cost", 0.0), getattr(run, "cached_tokens", 0))
+    except Exception:
+        traceback.print_exc()
     chat = db.one_row("SELECT title FROM chats WHERE id = ?", (run.chat["id"],))
     if chat and chat["title"] == "New chat":
         await make_title(run, first_text, final_text)
