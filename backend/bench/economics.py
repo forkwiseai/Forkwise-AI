@@ -84,8 +84,11 @@ def main():
     print()
     for plan, fee_share, fee_fixed in (("pro", 0.005, 0.0), ("premium", 0.005, 0.0)):
         price = plans.PRICES[plan]["month"]
-        worst = price * pricing.COMPUTE_SHARE
-        print("  %-8s crypto fee ~0.5%%: margin at full use %.0f%%, at 30%% average use %.0f%%" % (plan, 100 * (price * (1 - fee_share) - fee_fixed - worst) / price, 100 * (price * (1 - fee_share) - fee_fixed - 0.3 * worst) / price))
+        weekly_cap = pricing.monthly_budget(plan, plans.PRICES) * 7 / 30 * pricing.WEEKLY_BURST
+        worst = weekly_cap * 30 / 7  # every week at its cap, for a whole month
+        print("  %-8s weekly cap $%.2f, daily cap $%.2f; month at every weekly cap $%.2f -> margin %.0f%%; at 30%% use %.0f%%" % (
+            plan, weekly_cap, pricing.daily_budget(plan, plans.PRICES), worst,
+            100 * (price * (1 - fee_share) - fee_fixed - worst) / price, 100 * (price * (1 - fee_share) - fee_fixed - 0.3 * worst) / price))
 
 
 if __name__ == "__main__":

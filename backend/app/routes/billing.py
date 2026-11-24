@@ -62,9 +62,7 @@ def billing_info(request: Request):
         "plan": plans.active_plan(user),
         "plan_until": user.get("plan_until") or 0,
         "limit": plans.daily_limit(user),
-        "budget": plans.budget(user),
-        "spent_today": round(db.spent(user["id"], 1), 4),
-        "spent_month": round(db.spent(user["id"], 30), 4),
+        "limits": plans.limit_state(user),
         "payments": rows,
     }
 

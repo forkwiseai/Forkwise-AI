@@ -178,11 +178,7 @@ def delete_schedule(schedule_id: str, request: Request):
 
 
 def has_room(user):
-    limit = plans.daily_limit(user)
-    if limit <= 0 or user["is_admin"]:
-        return True
-    used = db.usage_today(user["id"])
-    return used["tokens_in"] + used["tokens_out"] < limit and not plans.over_budget(user)
+    return not plans.over_budget(user)
 
 
 def launch(row):

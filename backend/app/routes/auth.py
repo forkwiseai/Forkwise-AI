@@ -287,7 +287,7 @@ def logout(request: Request, response: Response):
 
 def me(request: Request):
     user = current_user(request)
-    return {"user": public_user(user), "models": providers.public_models(user["id"]), "usage": db.usage_today(user["id"]), "daily_limit": plans.daily_limit(user), "email_ready": mailer.ready()}
+    return {"user": public_user(user), "models": providers.public_models(user["id"]), "usage": db.usage_today(user["id"]), "daily_limit": plans.daily_limit(user), "limits": plans.limit_state(user), "email_ready": mailer.ready()}
 
 
 class ForgotBody(BaseModel):

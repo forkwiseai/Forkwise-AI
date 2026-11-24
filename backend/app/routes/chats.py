@@ -315,16 +315,12 @@ def clean_attachments(wid, items):
 
 
 def check_limit(user, model=None):
-    if model and model.get("own"):
+    """Refuses a new task when today's or this week's limit is used up, with the time it resets."""
+    if (model and model.get("own")) or user["is_admin"]:
         return
-    limit = plans.daily_limit(user)
-    if limit <= 0 or user["is_admin"]:
-        return
-    used = db.usage_today(user["id"])
-    if used["tokens_in"] + used["tokens_out"] >= limit:
-        raise HTTPException(status_code=429, detail="You reached today's usage limit. Upgrade your plan in Plan and usage for more.")
-    if plans.over_budget(user, model):
-        raise HTTPException(status_code=429, detail="You used this plan's model budget for now. It refills daily; upgrade in Plan and usage for more.")
+    state = plans.limit_state(user)
+    if state["blocked"] is not None:
+        raise HTTPException(status_code=429, detail=plans.blocked_message(state))
 
 
 async def send_message(chat_id: str, body: NewMessage, request: Request):

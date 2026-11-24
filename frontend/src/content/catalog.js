@@ -7,7 +7,7 @@ export const PLANS = [
     yearly: 0,
     cta: "Start free",
     to: "/register",
-    features: ["Chat, web research and memory", "A private computer per chat", "Live preview, files, changes and terminal", "GitHub and Gmail accounts", "Your own computer through the desktop app", "1 million tokens a day"],
+    features: ["Chat, web research and memory", "A private computer per chat", "Live preview, files, changes and terminal", "GitHub and Gmail accounts", "Your own computer through the desktop app", "Free and open-weight models"],
   },
   {
     key: "pro",
@@ -19,7 +19,7 @@ export const PLANS = [
     to: "/register?plan=pro",
     featured: true,
     tag: "Most popular",
-    features: ["Everything in Free", "5 million tokens a day", "Email support"],
+    features: ["Everything in Free", "Claude, Grok, Gemini and every model", "Daily and weekly limits", "Email support"],
   },
   {
     key: "premium",
@@ -29,7 +29,7 @@ export const PLANS = [
     yearly: 39,
     cta: "Get Premium",
     to: "/register?plan=premium",
-    features: ["Everything in Pro", "14 million tokens a day", "Priority support"],
+    features: ["Everything in Pro", "About 2.5 times the Pro limits", "Priority support"],
   },
   {
     key: "teams",

@@ -13,6 +13,8 @@ import os
 
 PRICES = [
     # most specific first; matched as a substring of the model id, lower case
+    (":free", (0.0, 0.0, 0.0)),   # OpenRouter free models: no charge (they are rate-limited instead)
+    ("@cf/", (0.0, 0.0, 0.0)),    # Cloudflare Workers AI free allocation; set MODEL_PRICES if you move to Workers Paid
     ("claude-fable", (10.0, 0.25, 50.0)),
     ("claude-opus-5", (4.0, 0.20, 20.0)),
     ("claude-opus", (5.0, 0.50, 25.0)),
@@ -33,8 +35,9 @@ UNKNOWN = (2.0, 0.20, 10.0)  # priced like a mid-tier model, so an unlisted mode
 # Share of the plan price the plan may spend on models in a month. The rest pays payment fees, servers and margin.
 COMPUTE_SHARE = float(os.environ.get("PLAN_COMPUTE_SHARE", "0.45"))
 FREE_MONTHLY_USD = float(os.environ.get("FREE_MONTHLY_USD", "0.60"))
-# A day may use up to this many times the month's average daily budget, so heavy days are possible.
-BURST = float(os.environ.get("PLAN_DAILY_BURST", "4"))
+# A day may use up to DAILY_BURST times the month's average day; a week up to WEEKLY_BURST times its average week.
+DAILY_BURST = float(os.environ.get("PLAN_DAILY_BURST", "3"))
+WEEKLY_BURST = float(os.environ.get("PLAN_WEEKLY_BURST", "1.25"))
 
 
 def extra_prices():
@@ -73,4 +76,29 @@ def monthly_budget(plan, prices):
 
 
 def daily_budget(plan, prices):
-    return monthly_budget(plan, prices) / 30 * BURST
+    return monthly_budget(plan, prices) / 30 * DAILY_BURST
+
+
+# Open-weight model families (weights published, many hosts). The free plan may use these and the :free models.
+OPEN_WEIGHT = ("gemma", "llama", "qwen", "qwq", "mistral", "mixtral", "devstral", "codestral", "ministral", "deepseek",
+               "gpt-oss", "kimi", "glm", "minimax", "nemotron", "phi-", "olmo", "lfm", "granite", "hermes", "ernie-4.5")
+
+
+def model_tier(model_id):
+    """free: no charge to Forkwise. open: open-weight family. paid: closed frontier model."""
+    lowered = (model_id or "").lower()
+    extra = [item.strip().lower() for item in os.environ.get("OPEN_WEIGHT_EXTRA", "").split(",") if item.strip()]
+    if lowered.endswith(":free") or "@cf/" in lowered:
+        return "free"
+    if any(word in lowered for word in OPEN_WEIGHT + tuple(extra)):
+        return "open"
+    return "paid"
+
+
+def plan_allows(plan, model):
+    """Free plan: free and open-weight models only. Paid plans: every model; heavier ones use the limit faster."""
+    if model is None or model.get("own"):
+        return True
+    if plan != "free":
+        return True
+    return model_tier(model.get("id", "")) in ("free", "open")

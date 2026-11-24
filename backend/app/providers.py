@@ -99,7 +99,12 @@ def find(user_id, key):
 
 
 def public_models(user_id):
+    from app import plans
     result = config.public_models()
+    user = db.one_row("SELECT * FROM users WHERE id = ?", (user_id,)) if user_id else None
+    if user is not None:
+        keys = {model["key"] for model in config.MODELS if plans.allows(user, model)}
+        result = [item for item in result if item["key"] in keys]
     for model in user_models(user_id):
         result.append({"key": model["key"], "label": model["label"], "vision": model["vision"], "context": model["context"], "vendor": "own", "vendor_label": "Your API: " + model["provider_name"], "own": True})
     return result

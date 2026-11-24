@@ -3,7 +3,7 @@ import re
 import json
 import time
 import traceback
-from app import db, config, pricing
+from app import db, config, pricing, plans
 from app.agent import verifier, toolcatalog, budget, capability, claims
 from app.agent import llm, tools, specs, prompt, checkpoints, sandbox, integrations, local, leaks
 
@@ -959,7 +959,9 @@ async def run_main(run, first_text):
                 status = "stopped"
                 break
             if run.money_left is not None and run.cost >= run.money_left:
-                run.emit("notice", {"text": "This plan's model budget is used up for now, so the task stopped here. It refills daily, or upgrade your plan for more."})
+                state = plans.limit_state(run.user)
+                state["blocked"] = state["blocked"] or ("week" if state["week"]["left"] is not None and state["week"]["left"] <= run.cost else "day")
+                run.emit("notice", {"text": "This task reached your plan's limit, so it stopped here. " + plans.blocked_message(state)})
                 status = "stopped"
                 break
             if len(calls) == 0:
@@ -1165,8 +1167,10 @@ def summarize_args(args):
 
 
 def start(chat, user, project, text, meta, effort=""):
-    from app import providers
-    model = providers.find(user["id"], chat["model"])
+    from app import providers, plans
+    model = plans.usable_model(user, providers.find(user["id"], chat["model"]))
+    if model is not None and not user.get("is_admin") and plans.active_plan(user) == "free" and not model.get("own"):
+        model = dict(model, plan_scope="free")  # failover stays on free and open-weight models
     run_id = db.new_id("r_")
     message_id = save_message(chat["id"], "user", text, meta=meta)
     db.insert("runs", {"id": run_id, "chat_id": chat["id"], "user_id": user["id"], "status": "running", "first_message_id": message_id, "started_at": db.now()})

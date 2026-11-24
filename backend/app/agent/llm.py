@@ -718,6 +718,10 @@ def candidates_for(model):
     result = [model]
     for other in config.MODELS:
         if other["key"] != model["key"]:
+            if model.get("plan_scope") == "free":
+                from app import pricing
+                if pricing.model_tier(other["id"]) not in ("free", "open"):
+                    continue
             result.append(other)
     ready = []
     waiting = []

@@ -640,7 +640,6 @@ function Computer() {
 }
 
 function Usage() {
-  const { dailyLimit } = useStore()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   useEffect(() => {
@@ -657,8 +656,15 @@ function Usage() {
       <div className="fw-kpis">
         <div><span>Tokens, last 30 days</span><strong>{fmt(total)}</strong></div>
         <div><span>Tasks, last 30 days</span><strong>{runs}</strong></div>
-        <div><span>Daily limit</span><strong>{data.limit > 0 ? fmt(data.limit) + " tokens" : dailyLimit > 0 ? fmt(dailyLimit) + " tokens" : "None"}</strong></div>
+        <div><span>Used today</span><strong>{data.limits ? Math.round(data.limits.day.used_pct) + "%" : "—"}</strong></div>
+        <div><span>Used this week</span><strong>{data.limits ? Math.round(data.limits.week.used_pct) + "%" : "—"}</strong></div>
       </div>
+      {data.limits && (
+        <p className="fw-muted" style={{ margin: "4px 0 16px" }}>
+          {"The daily limit resets " + new Date(data.limits.day.resets_at * 1000).toLocaleString() + ", the weekly limit " + new Date(data.limits.week.resets_at * 1000).toLocaleDateString() + ". "}
+          {data.limits.unit === "usd" ? "Stronger models and higher effort use the limit faster." : "The free plan runs free and open-weight models."}
+        </p>
+      )}
       <Group label="Daily usage" description="Tokens are the text the AI reads and writes.">
         <div className="fw-pad">
           {days.length === 0 ? <p className="fw-muted">No usage yet.</p> : (

@@ -193,7 +193,7 @@ function planName(plan) {
 }
 
 function Account({ onNavigate }) {
-  const { user, signOut, theme, setTheme, usage, dailyLimit } = useStore()
+  const { user, signOut, theme, setTheme, limits } = useStore()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [plan, setPlan] = useState("free")
@@ -219,17 +219,18 @@ function Account({ onNavigate }) {
     navigate(path)
   }
 
-  const used = usage ? (usage.tokens_in || 0) + (usage.tokens_out || 0) : 0
-  const short = (value) => (value >= 1000000 ? (Math.round(value / 100000) / 10) + "M" : value >= 1000 ? Math.round(value / 1000) + "k" : String(value))
+  const dayPct = limits && limits.day ? Math.min(100, limits.day.used_pct || 0) : 0
+  const weekPct = limits && limits.week ? Math.min(100, limits.week.used_pct || 0) : 0
+  const showUsage = limits && (plan === "free" || dayPct >= 50 || weekPct >= 50)
   return (
     <div className="fw-sb-foot">
-      {plan === "free" && (
+      {showUsage && (
         <div className="fw-sb-usage">
           <div className="fw-sb-usage-top">
-            <span>{dailyLimit ? short(used) + " of " + short(dailyLimit) + " tokens today" : short(used) + " tokens today"}</span>
-            <button type="button" className="fw-link-btn" onClick={() => go("/app/billing")}><Zap size={12} />Upgrade</button>
+            <span>{"Today " + Math.round(dayPct) + "% · Week " + Math.round(weekPct) + "%"}</span>
+            {plan !== "premium" && <button type="button" className="fw-link-btn" onClick={() => go("/app/billing")}><Zap size={12} />Upgrade</button>}
           </div>
-          {dailyLimit > 0 && <Meter value={used} max={dailyLimit} />}
+          <Meter value={Math.max(dayPct, weekPct)} max={100} />
         </div>
       )}
       <div className="fw-sb-me-row">

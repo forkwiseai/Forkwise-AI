@@ -815,6 +815,17 @@ def spent(user_id, days=1):
     return int((row or {}).get("total") or 0) / 1_000_000
 
 
+def spent_from(user_id, first_day):
+    """Dollars spent from the UTC day `first_day` (YYYY-MM-DD) up to now."""
+    row = one_row("SELECT COALESCE(SUM(micros), 0) AS total FROM usage_cost WHERE user_id = ? AND day >= ?", (user_id, first_day))
+    return int((row or {}).get("total") or 0) / 1_000_000
+
+
+def tokens_from(user_id, first_day):
+    row = one_row("SELECT COALESCE(SUM(tokens_in), 0) + COALESCE(SUM(tokens_out), 0) AS total FROM usage_daily WHERE user_id = ? AND day >= ?", (user_id, first_day))
+    return int((row or {}).get("total") or 0)
+
+
 def usage_today(user_id):
     day = time.strftime("%Y-%m-%d", time.gmtime())
     row = one_row("SELECT * FROM usage_daily WHERE user_id = ? AND day = ?", (user_id, day))

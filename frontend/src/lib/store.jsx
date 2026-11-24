@@ -8,6 +8,7 @@ export function StoreProvider({ children }) {
   const [models, setModels] = useState([])
   const [usage, setUsage] = useState(null)
   const [dailyLimit, setDailyLimit] = useState(0)
+  const [limits, setLimits] = useState(null)
   const [emailReady, setEmailReady] = useState(false)
   const [ready, setReady] = useState(false)
   const [chatsReady, setChatsReady] = useState(false)
@@ -29,6 +30,7 @@ export function StoreProvider({ children }) {
       setModels(data.models)
       setUsage(data.usage)
       setDailyLimit(data.daily_limit || 0)
+      setLimits(data.limits || null)
       setEmailReady(Boolean(data.email_ready))
       writeHint(true)
       setHintState(true)
@@ -113,7 +115,7 @@ export function StoreProvider({ children }) {
   }
 
   const value = {
-    user, setUser, signIn, signOut, hint, models, usage, dailyLimit, emailReady, ready, loadMe,
+    user, setUser, signIn, signOut, hint, models, usage, dailyLimit, limits, emailReady, ready, loadMe,
     chats, chatsReady, loadChats, patchChat, addChat, removeChat,
     projects, loadProjects, setProjects,
     theme, setTheme: setThemeState,

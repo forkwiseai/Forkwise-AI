@@ -17,14 +17,41 @@ def test_env_override(monkeypatch):
     assert pricing.price_of("p1:my-local-model") == (0.5, 0.05, 1.5)
 
 
-def test_budget_tracks_spend():
-    user = {"id": "u_budget_test", "plan": "pro", "plan_until": db.now() + 86400, "is_admin": 0}
-    left = plans.money_left(user)
-    assert abs(left - plans.budget(user)["daily"]) < 1e-6
-    db.add_cost(user["id"], left + 0.01, 1000)
+def test_daily_and_weekly_limits():
+    user = {"id": "u_limits_test", "plan": "pro", "plan_until": db.now() + 86400, "is_admin": 0}
+    found = plans.caps(user)
+    assert found["unit"] == "usd" and found["week"] > found["day"]
+    assert abs(plans.money_left(user) - found["day"]) < 1e-6
+    db.add_cost(user["id"], found["day"] + 0.01, 1000)
+    state = plans.limit_state(user)
+    assert state["blocked"] == "day" and state["day"]["used_pct"] > 100
+    assert "resets at" in plans.blocked_message(state)
     assert plans.over_budget(user)
     assert not plans.over_budget(user, {"own": True})
     assert not plans.over_budget(dict(user, is_admin=1))
+    db.add_cost(user["id"], found["week"], 0)
+    assert plans.limit_state(user)["blocked"] == "week"
+    assert "week" in plans.blocked_message(plans.limit_state(user))
+
+
+def test_windows_reset_at_midnight_and_monday():
+    wednesday_noon = (1764158400 // 86400) * 86400 + 12 * 3600  # 2025-11-26 is a Wednesday
+    spans = plans.windows(wednesday_noon)
+    assert spans["day"][1] - wednesday_noon == 12 * 3600
+    assert (spans["week"][1] - spans["day"][0]) // 86400 == 5  # Thursday..Sunday plus the rest of Wednesday
+
+
+def test_free_plan_models_and_prices():
+    assert pricing.cost("baidu/ernie-5.5-flash-preview:free", 600000, 17500) == 0.0
+    assert pricing.cost("@cf/google/gemma-4-26b-a4b-it", 600000, 17500) == 0.0
+    assert pricing.model_tier("liquid/lfm-3-1.7b:free") == "free"
+    assert pricing.model_tier("qwen/qwen3-coder") == "open"
+    assert pricing.model_tier("anthropic/claude-sonnet-5-5") == "paid"
+    free = {"id": "u_free", "plan": "free", "plan_until": 0, "is_admin": 0}
+    assert plans.allows(free, {"id": "meta-llama/llama-4"})
+    assert not plans.allows(free, {"id": "x-ai/grok-4.7"})
+    assert plans.allows(free, {"id": "x-ai/grok-4.7", "own": True})
+    assert plans.caps(free)["unit"] == "tokens"
 
 
 def test_history_gets_a_cache_breakpoint_for_claude():
