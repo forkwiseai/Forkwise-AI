@@ -17,7 +17,7 @@ Describe the app, site or fix you want. Forkwise plans it, writes the code on it
 
 <br>
 
-<img src="frontend/public/site/app-workspace.webp" alt="Forkwise building a team task board: the chat with every step on the left, the live preview of the running app on the right" width="100%">
+<img src="frontend/public/site/demo.gif" alt="Forkwise in action: describe an app, watch it write the code, install packages, build it and test it in a browser" width="100%">
 
 </div>
 
