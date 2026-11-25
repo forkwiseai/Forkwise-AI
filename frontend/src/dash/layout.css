@@ -672,3 +672,44 @@ html[data-theme="light"] .fw .fw-composer { background: #fff; }
 .fw .fw-run-label .fw-wave > span { color: var(--tx-2); animation: fw-letter-strong var(--wave-time, 1.6s) ease-in-out var(--wave-delay, 0s) infinite !important; }
 @keyframes fw-letter-strong { 0%, 100% { color: var(--tx-2); } 18% { color: var(--tx); } 36% { color: var(--tx-2); } }
 @media (prefers-reduced-motion: reduce) { .fw .fw-wave > span, .fw .fw-wave-sweep, .fw .fw-run-label .fw-wave > span { animation: none !important; color: var(--tx-2); -webkit-text-fill-color: currentColor; } }
+
+/* ---------- Links in the composer: highlighted in the text, with a preview card ---------- */
+.fw .fw-cinput { position: relative; }
+.fw .fw-input-mirror {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  padding: 13px 14px 4px; font-size: 14.5px; line-height: 1.55; color: var(--tx); white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+}
+.fw .fw-composer.is-big .fw-input-mirror { padding-top: 14px; }
+.fw .fw-cinput.has-links textarea { position: relative; z-index: 1; color: transparent; caret-color: var(--tx); background: transparent; }
+.fw .fw-cinput.has-links textarea, .fw .fw-input-mirror { scrollbar-gutter: stable; }
+.fw .fw-cinput.has-links textarea::selection { color: transparent; background: color-mix(in srgb, var(--blue) 28%, transparent); }
+.fw .fw-input-link { color: var(--blue); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--blue) 45%, transparent); text-underline-offset: 3px; }
+.fw .fw-link-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 12px 0; }
+.fw .fw-link-card {
+  position: relative; display: flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line-2); background: var(--bg-3); color: var(--tx); text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease !important;
+  animation: fw-link-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both !important;
+}
+html[data-theme="light"] .fw .fw-link-card { background: #f7f7f8; }
+.fw .fw-link-card:hover { border-color: var(--line-3); }
+.fw .fw-link-row .fw-link-card { width: 340px; }
+.fw .fw-link-row .fw-link-card.is-compact { width: 240px; }
+.fw .fw-link-icon { flex: none; width: 22px; height: 22px; border-radius: 5px; object-fit: cover; background: var(--bg-1); }
+.fw .fw-link-icon.is-empty { display: grid; place-items: center; color: var(--tx-3); }
+.fw .fw-link-text { display: grid; flex: 1; min-width: 0; line-height: 1.3; }
+.fw .fw-link-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 600; }
+.fw .fw-link-host { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11.5px; color: var(--tx-3); }
+.fw .fw-link-card.is-loading .fw-link-title { color: var(--tx-3); font-weight: 500; }
+.fw .fw-link-thumb { flex: none; width: 52px; height: 52px; margin: -2px -2px -2px 0; border-radius: 7px; object-fit: cover; background: var(--bg-1); }
+.fw .fw-link-x {
+  position: absolute; top: -6px; inset-inline-end: -6px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg-1); border: 1px solid var(--line-2); color: var(--tx-2); opacity: 0; transition: opacity 0.15s ease !important;
+}
+.fw .fw-link-card:hover .fw-link-x, .fw .fw-link-x:focus-visible { opacity: 1; }
+@media (hover: none) { .fw .fw-link-x { opacity: 1; } }
+.fw .fw-msg-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 8px; max-width: min(100%, 520px); margin-inline-start: auto; }
+.fw .fw-msg-links .fw-link-card { width: 300px; }
+.fw .fw-msg-user-text a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; word-break: break-all; }
+@keyframes fw-link-in { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fw .fw-link-card { animation: none !important; } }

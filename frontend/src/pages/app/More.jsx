@@ -61,9 +61,9 @@ function CoinPicker({ options, value, onChange }) {
   return (
     <div className="fw-paycoin">
       {/* Each button draws its own highlight, so it cannot drift away from the coin it belongs to. */}
-      <div className="fw-seg" role="radiogroup" aria-label="Coin" onKeyDown={onKey} style={{ gridTemplateColumns: "repeat(" + coins.length + ", minmax(0, 1fr))" }}>
+      <div className="fw-coinseg" role="radiogroup" aria-label="Coin" onKeyDown={onKey} style={{ gridTemplateColumns: "repeat(" + coins.length + ", minmax(0, 1fr))" }}>
         {coins.map((item) => (
-          <button key={item} type="button" role="radio" aria-checked={item === coin} tabIndex={item === coin ? 0 : -1} className={cx("fw-seg-item", item === coin && "is-on")} onClick={() => pickCoin(item)}>
+          <button key={item} type="button" role="radio" aria-checked={item === coin} tabIndex={item === coin ? 0 : -1} className={cx("fw-coinseg-item", item === coin && "is-on")} onClick={() => pickCoin(item)}>
             <CoinGlyph coin={item} size={20} />
             <strong>{item}</strong>
           </button>

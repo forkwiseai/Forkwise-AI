@@ -5,6 +5,8 @@ import { ArrowUp, AtSign, AudioLines, Blocks, Brain, Check, ChevronDown, Chevron
 import { api, upload, rawUrl } from "../../lib/api"
 import { groupModels, readRecent, rememberModel, vendorInfo, vendorOf } from "../../lib/vendors"
 import { MenuItem, MenuLabel, MenuSep, Popover, cx } from "../../dash/kit"
+import { linkParts, useSettledLinks } from "../../lib/links"
+import LinkCard from "./LinkCard"
 
 let skillCache = null
 
@@ -298,6 +300,8 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
   const [listening, setListening] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState("")
+  const [hiddenLinks, setHiddenLinks] = useState([])
+  const mirror = useRef(null)
   const [commandIndex, setCommandIndex] = useState(0)
   const area = useRef(null)
   const picker = useRef(null)
@@ -331,6 +335,7 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
     if (!box) return
     box.style.height = "0px"
     box.style.height = Math.min(box.scrollHeight, 360) + "px"
+    if (mirror.current) mirror.current.scrollTop = box.scrollTop
   }, [text])
 
   useEffect(() => {
@@ -436,6 +441,14 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
     return found ? found.title || found.name : name
   }
 
+  const links = useSettledLinks(text).filter((link) => !hiddenLinks.includes(link))
+  const parts = useMemo(() => linkParts(text), [text])
+  const marked = parts.some((part) => part.link)
+
+  function syncMirror() {
+    if (mirror.current && area.current) mirror.current.scrollTop = area.current.scrollTop
+  }
+
   const uploading = items.some((item) => item.status === "uploading")
   const ready = items.filter((item) => item.status === "done" && item.file).map((item) => item.file)
   const canSend = (text.trim() || ready.length > 0) && !uploading
@@ -453,6 +466,7 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
     setText("")
     setItems([])
     setPicked([])
+    setHiddenLinks([])
     setError("")
   }
 
@@ -651,8 +665,21 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
           ))}
         </div>
       )}
+      {links.length > 0 && (
+        <div className="fw-link-row">
+          {links.map((link) => <LinkCard key={link} url={link} compact={links.length > 1} onRemove={(url) => setHiddenLinks((list) => [...list, url])} />)}
+        </div>
+      )}
+      <div className={cx("fw-cinput", marked && "has-links")}>
+      {marked && (
+        <div ref={mirror} className="fw-input-mirror" dir="auto" aria-hidden="true">
+          {parts.map((part, index) => (part.link ? <span key={index} className="fw-input-link">{part.text}</span> : part.text))}
+          {"\u200b"}
+        </div>
+      )}
       <textarea
         ref={area}
+        onScroll={syncMirror}
         dir="auto"
         rows={1}
         value={text}
@@ -663,6 +690,7 @@ export default function Composer({ onSend, onStop, running, mode, onMode, model,
         onPaste={onPaste}
         autoFocus
       />
+      </div>
       {error && <div className="fw-composer-error" role="alert">{error}</div>}
       <div className="fw-composer-bar">
         <button ref={plusRef} type="button" className={cx("fw-cbtn", "fw-cbtn-plus", plusOpen && "is-on")} title="Modes, files, skills and connectors" aria-label="Add" aria-haspopup="menu" aria-expanded={plusOpen} onClick={() => setPlusOpen(!plusOpen)}>

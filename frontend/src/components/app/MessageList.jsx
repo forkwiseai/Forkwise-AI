@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { lazy, Suspense } from "react"
 import { Brain, Check, ChevronDown, Copy, FileText, GitBranch, History, Info, AlertTriangle, Pencil, RefreshCw, Sparkles, ThumbsUp, ThumbsDown } from "lucide-react"
 import Markdown from "./Markdown"
 import { DraftCall, liveLabel, partialField } from "./ToolCall"
 import Flow, { buildFlow } from "./Flow"
 import { rawUrl } from "../../lib/api"
+import { findLinks, linkParts } from "../../lib/links"
+import LinkCard from "./LinkCard"
 import { useSmoothText } from "../../lib/smooth"
 import ForkMark, { markMode } from "./ForkMark"
 import WaveText from "./WaveText"
@@ -72,6 +74,7 @@ function UserMessage({ message, wid, onRewind, onEdit, onFork, canRewind }) {
   const attachments = (message.meta && message.meta.attachments) || []
   const skills = (message.meta && message.meta.skills) || []
   const content = String(message.content || "").replace(SKILL_NOTE, "")
+  const links = useMemo(() => findLinks(content, 2), [content])
   return (
     <div className={"fw-msg-user" + (message.clientKey ? " is-new" : "")}>
       <div className="fw-msg-user-bubble">
@@ -89,8 +92,9 @@ function UserMessage({ message, wid, onRewind, onEdit, onFork, canRewind }) {
             {skills.map((name) => <span key={name} className="fw-chip fw-skill-chip"><Sparkles size={12} />{name}</span>)}
           </div>
         )}
-        {content && <div className="fw-msg-user-text" dir="auto">{content}</div>}
+        {content && <div className="fw-msg-user-text" dir="auto">{linkParts(content).map((part, index) => (part.link ? <a key={index} href={part.link} target="_blank" rel="noreferrer noopener">{part.text}</a> : part.text))}</div>}
       </div>
+      {links.length > 0 && <div className="fw-msg-links">{links.map((link) => <LinkCard key={link} url={link} compact />)}</div>}
       <div className="fw-msg-actions">
         <CopyButton text={content} />
         {canRewind && !message.temp && onEdit && (
