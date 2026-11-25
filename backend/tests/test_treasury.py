@@ -13,8 +13,8 @@ def test_plan_math():
     assert low["top_up"] == 50 and low["send_usdc"] == 52.5
     critical = treasury.plan(8.0, 35.0)  # 1.6 days
     assert critical["critical"] and critical["top_up"] == 72  # 2*35 + 10 - 8 = 72
-    quiet = treasury.plan(0.0, 0.0)  # a new account: the $10 that unlocks free models
-    assert quiet["low"] and quiet["top_up"] == 10 and quiet["send_usdc"] == 10.5
+    quiet = treasury.plan(0.0, 0.0)  # nothing billed by OpenRouter: the $10 is optional, nothing to send
+    assert not quiet["low"] and quiet["optional"] and quiet["top_up"] == 0
     unknown = treasury.plan(None, 10.0)
     assert unknown["balance"] is None and not unknown["low"]
 
@@ -71,3 +71,25 @@ def test_tiny_spend_does_not_jump_to_next_five():
     # a new account with a few cents of spending: $10 minimum plus cents, rounded up to $11, not $15
     found = treasury.plan(0.0, 0.03)
     assert found["top_up"] == 11 and found["send_usdc"] == 11.55
+
+
+def test_other_providers_spend_is_not_openrouters_bill(monkeypatch):
+    # NVIDIA (free) plus an OpenRouter model whose key can't report usage: Forkwise's own spend covers all
+    # providers, so it must not turn into an OpenRouter top-up.
+    monkeypatch.setattr(config, "MODELS", [
+        {"key": "p1:n", "id": "nvidia/nemotron", "url": "https://integrate.api.nvidia.com/v1", "api_key": "nv"},
+        {"key": "p2:o", "id": "x/y:free", "url": "https://openrouter.ai/api/v1", "api_key": "sk-or-test"},
+    ])
+    monkeypatch.setenv("OPENROUTER_MANAGEMENT_KEY", "mgmt")
+    monkeypatch.setattr(treasury, "own_spend_week", lambda: 13.5)
+
+    def handler(request):
+        if request.url.path.endswith("/credits"):
+            return httpx.Response(200, json={"data": {"total_credits": 0, "total_usage": 0}})
+        return httpx.Response(500)
+
+    async def go():
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        result = await treasury.check(client)
+        assert result["burn7"] == 0 and not result["low"] and result["optional"] and result["send_usdc"] == 0
+    asyncio.run(go())

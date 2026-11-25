@@ -240,7 +240,7 @@ function Account({ onNavigate }) {
 
   const dayPct = limits && limits.day ? Math.min(100, limits.day.used_pct || 0) : 0
   const weekPct = limits && limits.week ? Math.min(100, limits.week.used_pct || 0) : 0
-  const showUsage = limits && (plan === "free" || dayPct >= 50 || weekPct >= 50)
+  const showUsage = limits && !limits.unlimited && (plan === "free" || dayPct >= 50 || weekPct >= 50)
   return (
     <div className="fw-sb-foot">
       {showUsage && (

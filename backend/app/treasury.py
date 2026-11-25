@@ -2,10 +2,12 @@
 
 Numbers (all in USD):
   balance  = total_credits - total_usage                        (GET /api/v1/credits, management key)
-  burn7    = max(OpenRouter usage_weekly of the server key,     (GET /api/v1/key, normal key)
-                 Forkwise's own priced spend over 7 days)
+  burn7    = OpenRouter usage_weekly of the server key          (GET /api/v1/key, normal key)
+             (Forkwise's own priced spend is only a fallback when every model on the server is an OpenRouter
+              model: it sums all providers, so with NVIDIA, Gemini or Groq it is not OpenRouter's bill)
   daily    = burn7 / 7,  days_left = balance / daily
-  target   = max(MIN_BALANCE, burn7 * TARGET_WEEKS)             low when balance < target
+  target   = max(MIN_BALANCE, burn7 * TARGET_WEEKS)             low when balance < target and burn7 > 0
+             (with no paid OpenRouter use the $10 is optional: it only lifts free models from 50 to 1,000 requests a day)
   top_up   = round up to the whole dollar of max(MIN_PURCHASE, burn7 * FILL_WEEKS + MIN_BALANCE - balance)
   send     = top_up * (1 + CRYPTO_FEE)                          the USDC to send, fee included
 
@@ -57,7 +59,8 @@ def plan(balance, burn7):
         return result
     result["balance"] = round(balance, 4)
     result["days_left"] = round(balance / daily, 1) if daily > 0 else None
-    result["low"] = balance < target
+    result["optional"] = burn7 <= 0 and balance < min_balance
+    result["low"] = burn7 > 0 and balance < target
     result["critical"] = result["days_left"] is not None and result["days_left"] < CRITICAL_DAYS
     if result["low"]:
         need = max(setting("TREASURY_MIN_PURCHASE", "10"), burn7 * setting("TREASURY_FILL_WEEKS", "2") + min_balance - balance)
@@ -94,6 +97,11 @@ async def read_openrouter(client):
     return found
 
 
+def only_openrouter():
+    models = [model for model in config.MODELS if not model.get("own")]
+    return bool(models) and all("openrouter.ai" in str(model.get("url") or "") for model in models)
+
+
 def own_spend_week():
     first = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 6 * 86400))
     row = db.one_row("SELECT COALESCE(SUM(micros), 0) AS total FROM usage_cost WHERE day >= ?", (first,))
@@ -102,7 +110,11 @@ def own_spend_week():
 
 async def check(client):
     read = await read_openrouter(client)
-    burn7 = max(read["usage_weekly"] or 0.0, own_spend_week())
+    if read["usage_weekly"] is not None:
+        burn7 = read["usage_weekly"]
+    else:
+        burn7 = own_spend_week() if only_openrouter() else 0.0
+    read["usage_weekly"] = burn7
     result = plan(read["balance"], burn7)
     result["error"] = read["error"]
     result["checked_at"] = time.time()

@@ -74,15 +74,21 @@ function Treasury() {
   if (!data) return null
   const tone = data.critical ? "var(--fw-danger, #c0392b)" : data.low ? "var(--fw-warning, #b7791f)" : "inherit"
   return (
-    <Card title="OpenRouter balance" description="Checked every hour. Admins get an email when it is time to top up." action={<Button size="sm" variant="ghost" loading={busy} onClick={refresh}>Check now</Button>}>
+    <Card title="OpenRouter balance" description="Only OpenRouter's own bill counts here. Free providers (NVIDIA, Gemini, Groq...) never ask for a top-up. Checked every hour." action={<Button size="sm" variant="ghost" loading={busy} onClick={refresh}>Check now</Button>}>
       <div className="fw-card-body">
         {data.balance === null || data.balance === undefined ? (
           <p className="fw-muted fw-small-text">{data.error || "No balance yet."}</p>
         ) : (
           <div className="fw-stats-row is-3">
             <div className="fw-stat"><span>Balance</span><strong style={{ color: tone }}>{cents(data.balance)}</strong><small>{data.balance <= 0 ? "No credits bought yet" : data.days_left !== null ? data.days_left + " days left" : "No spending yet"}</small></div>
-            <div className="fw-stat"><span>Spent, last 7 days</span><strong>{cents(data.burn7)}</strong><small>{cents(data.daily) + " a day"}</small></div>
-            <div className="fw-stat"><span>{data.low ? "Send now" : "Keep at least"}</span><strong style={{ color: tone }}>{data.low ? data.send_usdc + " USDC" : money(data.target)}</strong><small>{data.low ? (data.balance <= 0 ? "First purchase: $" + data.top_up + " of credits (OpenRouter's $10 minimum for free models plus this week's spending), 5% crypto fee included" : "Buys $" + data.top_up + " of credits, 5% crypto fee included") : "1.5 weeks of spending"}</small></div>
+            <div className="fw-stat"><span>OpenRouter spend, 7 days</span><strong>{cents(data.burn7)}</strong><small>{data.burn7 > 0 ? cents(data.daily) + " a day" : "Nothing billed by OpenRouter"}</small></div>
+            {data.low ? (
+              <div className="fw-stat"><span>Send now</span><strong style={{ color: tone }}>{data.send_usdc + " USDC"}</strong><small>{"Buys $" + data.top_up + " of credits: 2 weeks at this rate plus a $10 cushion, 5% crypto fee included. One top-up, not per payment."}</small></div>
+            ) : data.optional ? (
+              <div className="fw-stat"><span>Nothing to pay</span><strong>$0</strong><small>Optional: a one-time $10 lifts OpenRouter's free models from 50 to 1,000 requests a day.</small></div>
+            ) : (
+              <div className="fw-stat"><span>Keep at least</span><strong>{money(data.target)}</strong><small>1.5 weeks of spending</small></div>
+            )}
           </div>
         )}
         {data.low && <p className="fw-small-text" style={{ marginTop: 10 }}><a href="https://openrouter.ai/settings/credits" target="_blank" rel="noreferrer">Open OpenRouter credits</a>, choose crypto, and send the amount above in USDC from your wallet. Check the network the checkout asks for before sending.</p>}
@@ -107,7 +113,7 @@ function Overview() {
       <div className="fw-stats-row">
         <Stat icon={Users} label="Users" value={number(data.users)} note={number(data.new_week) + " new this week"} />
         <Stat icon={Activity} label="Active this week" value={number(data.active_week)} note={data.users ? Math.round((data.active_week / data.users) * 100) + "% of users" : ""} />
-        <Stat icon={Crown} label="Paying" value={number(data.paid_users)} note={data.pending_delete ? data.pending_delete + " pending deletion" : "Active plans"} />
+        <Stat icon={Crown} label="On a paid plan" value={number(data.paid_users)} note={data.pending_delete ? data.pending_delete + " pending deletion" : "Includes plans given by an admin"} />
         <Stat icon={CircleDollarSign} label="Revenue, 30 days" value={money(data.revenue_month)} note={money(data.revenue) + " all time"} />
       </div>
       <div className="fw-admin-2col">

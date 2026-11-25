@@ -84,6 +84,9 @@ def limit_state(user, now=None):
             state["blocked"] = name
     if state["day"]["used_pct"] >= 100 and state["week"]["used_pct"] >= 100:
         state["blocked"] = "week"  # the later reset is the one that matters
+    if user.get("is_admin"):
+        state["unlimited"] = True  # admins are never stopped (over_budget, check_limit), so the meter would mislead
+        state["blocked"] = None
     return state
 
 
