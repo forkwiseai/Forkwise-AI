@@ -201,3 +201,16 @@ def test_no_advisor_without_a_configured_model(monkeypatch):
     monkeypatch.delenv("ADVISOR_MODEL", raising=False)
     run = run_obj(user={"id": "u", "settings": "{}", "plan": "free"}, model={"key": "main:a"})
     assert advisor.model_for(run) is None and not advisor.available(run)
+
+
+def test_a_stub_is_promoted_after_its_definition_was_shown():
+    from app.agent import toolcatalog
+    full = {"type": "function", "function": {"name": "show_file", "description": "Show a file.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}}
+    sent, specs_by_name, stubbed = toolcatalog.build([full], core=set())
+    run = run_obj(tool_specs=sent, full_specs=specs_by_name, stubbed=stubbed, model={"key": "k"})
+    assert toolcatalog.gate(run, "show_file", {}) is not None           # a strict decoder sends {} to a stub
+    toolcatalog.promote(run, "show_file")
+    assert run.tool_specs[0]["function"]["parameters"]["required"] == ["path"]   # now it can send the path
+    assert toolcatalog.gate(run, "show_file", {}) is None                # and an empty call runs (and fails normally)
+    again, _, stubbed_again = toolcatalog.build([full], core=toolcatalog.CORE | run.promoted)
+    assert "show_file" not in stubbed_again

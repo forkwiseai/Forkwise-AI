@@ -197,6 +197,23 @@ def gate(run, name, args):
     return None
 
 
+def promote(run, name):
+    """After a stub's definition was shown once, the model gets the full definition from then on.
+
+    Some providers decode tool arguments against the schema they were given (vLLM guided decoding, strict
+    function calling). For a stub that schema has no properties, so the model can only ever send {} and would
+    get the definition back forever. Promoting also keeps a model that ignored the text from looping."""
+    promoted = getattr(run, "promoted", None)
+    if promoted is None:
+        promoted = run.promoted = set()
+    promoted.add(name)
+    stubbed = getattr(run, "stubbed", set())
+    stubbed.discard(name)
+    full = (getattr(run, "full_specs", None) or {}).get(name)
+    if full is not None and getattr(run, "tool_specs", None):
+        run.tool_specs = [full if spec["function"]["name"] == name else spec for spec in run.tool_specs]
+
+
 # Measured switch. A run saves N*D tokens and loses q*(P + s*N) per stubbed tool whose first call fails the check.
 # bench/proofs.py gives break-even q* between 0.21 and 0.43 for realistic runs, so stubs stay on for a model only
 # while its measured failure share q stays below Q_MAX. Counts persist per model.

@@ -75,7 +75,7 @@ function groupHint(group) {
   return more > 0 && names.length >= 3 ? text + " +" + more : text
 }
 
-export function buildFlow(items) {
+export function buildFlow(items, results) {
   const nodes = []
   let pendingThought = ""
   let key = 0
@@ -103,7 +103,8 @@ export function buildFlow(items) {
         nodes.push({ type: "say", text: item.content, key: "s" + item.id })
       }
     }
-    const calls = item.tool_calls || []
+    // A call that only fetched a tool's full definition (it was not run) is plumbing, not a step.
+    const calls = (item.tool_calls || []).filter((call) => !(results && results[call.id] && results[call.id].meta && results[call.id].meta.schema))
     const regular = calls.filter((call) => STANDALONE.indexOf(call.function.name) === -1 && call.function.name !== "task")
     const parallel = regular.length > 1
     for (const call of calls) {

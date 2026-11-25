@@ -301,7 +301,7 @@ async def refresh_tools(run):
         found.append(advisor.SPEC)
     found = drop_unneeded(run, found)
     model_key = (run.model or {}).get("key", "")
-    sent, full, stubbed = toolcatalog.build(found, full_all=run.mode == "plan" or not toolcatalog.stubs_pay_off(model_key))
+    sent, full, stubbed = toolcatalog.build(found, core=toolcatalog.CORE | getattr(run, "promoted", set()), full_all=run.mode == "plan" or not toolcatalog.stubs_pay_off(model_key))
     run.tool_specs = sent
     run.full_specs = full
     run.stubbed = stubbed
@@ -705,6 +705,7 @@ async def execute_call(run, call):
     run.emit("tool_start", {"id": call["id"], "name": name, "args": args})
     shown = toolcatalog.gate(run, name, args)
     if shown is not None:
+        toolcatalog.promote(run, name)
         return name, args, tools.result(shown, meta={"schema": True})
     if run.mode == "plan" and name == "task":
         args["agent"] = "explore"

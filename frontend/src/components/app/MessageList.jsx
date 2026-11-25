@@ -234,7 +234,7 @@ export default function MessageList({ state, wid, respond, onPreview, onRewind, 
           <div className="fw-turn" key={"turn" + index}>
             {turn.user && <UserMessage message={turn.user} wid={wid} onRewind={onRewind} onEdit={onEdit} onFork={onFork} canRewind={!live.running && !readOnly} />}
             <div className="fw-msg-assistant">
-              <Flow nodes={buildFlow(turn.items)} results={results} ctx={{ live, wid, respond, onPreview, lastPlanId, chat: state.chat, onApprovePlan, onRevisePlan, lastTurn }} />
+              <Flow nodes={buildFlow(turn.items, results)} results={results} ctx={{ live, wid, respond, onPreview, lastPlanId, chat: state.chat, onApprovePlan, onRevisePlan, lastTurn }} />
               {lastTurn && live.running && (
                 <div className="fw-assistant-step fw-live">
                   <Reasoning text={live.reasoning} live />
