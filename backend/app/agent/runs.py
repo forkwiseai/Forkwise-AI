@@ -4,7 +4,7 @@ import json
 import time
 import traceback
 from app import db, config, pricing, plans
-from app.agent import verifier, toolcatalog, budget, capability, claims
+from app.agent import verifier, toolcatalog, budget, capability, claims, engine, codecheck, agents, advisor
 from app.agent import llm, tools, specs, prompt, checkpoints, sandbox, integrations, local, leaks
 
 RUNS = {}
@@ -40,6 +40,10 @@ class Run:
         self.read_files = {}
         self.changed = False
         self.tools_changed = True
+        self.engine = engine.Engine()
+        self.step_edits = set()
+        self.want_advice = ""
+        self.helper_slots = asyncio.Semaphore(agents.MAX_PARALLEL)
         self.tool_specs = []
         self.mcp_routes = {}
         self.todos = db.load_json(chat.get("todos"), [])
@@ -292,12 +296,89 @@ async def refresh_tools(run):
             found.append(specs.my_browser_spec(link.browser))
     if run.local:
         found = local.hide_sandbox_tools(found)
+    found = [agents.task_spec(run, spec) if spec["function"]["name"] == "task" else spec for spec in found]
+    if advisor.available(run) and not any(spec["function"]["name"] == "advisor" for spec in found):
+        found.append(advisor.SPEC)
     found = drop_unneeded(run, found)
     model_key = (run.model or {}).get("key", "")
     sent, full, stubbed = toolcatalog.build(found, full_all=run.mode == "plan" or not toolcatalog.stubs_pay_off(model_key))
     run.tool_specs = sent
     run.full_specs = full
     run.stubbed = stubbed
+
+
+EDIT_TOOLS = "write_file|edit_file|multi_edit"
+
+
+def project_settings(run):
+    if run.local:
+        return {}
+    try:
+        return tools.read_settings(run.wid)
+    except Exception:
+        return {}
+
+
+def build_engine(run):
+    """The run's event engine: the project's permission rules and hooks, and Forkwise's own code checks."""
+    found = engine.Engine()
+    settings = project_settings(run)
+    if not run.local:
+        engine.install_permissions(found, settings)
+
+        async def run_command(command, payload):
+            return await sandbox.run(run.wid, command, timeout=60, limit=6000, extra_env={"FORKWISE_HOOK_INPUT": json.dumps(payload, ensure_ascii=False, default=str)[:60000]})
+        engine.install_project_hooks(found, settings, run_command)
+        if settings.get("diagnostics", True) is not False:
+            async def code_check(run, event, next):
+                outcome = await next(event)
+                path = (outcome.get("meta") or {}).get("path") if outcome.get("ok") else ""
+                if path:
+                    run.step_edits.add(path)
+                    report = await codecheck.quick(run, path)
+                    if report:
+                        outcome["text"] = outcome["text"] + "\n\nCode check of " + path + " found problems:\n" + report
+                        outcome.setdefault("meta", {})["diagnostics"] = report[:2000]
+                return outcome
+            found.on("tool.call", code_check, tier="builtin", match=EDIT_TOOLS, name="code check")
+    return found
+
+
+async def check_tool(run, name, args):
+    async def core(event):
+        return {"decision": "default", "reason": ""}
+    return await run.engine.emit(run, "tool.check", {"name": name, "args": args}, core)
+
+
+async def call_tool(run, name, args, call_id):
+    async def core(event):
+        return await tools.execute(run, event["name"], event["args"], event["call_id"])
+    return await run.engine.emit(run, "tool.call", {"name": name, "args": args, "call_id": call_id}, core)
+
+
+async def after_step(run):
+    edited = set(getattr(run, "step_edits", set()))
+    run.step_edits = set()
+    if edited and not run.local and project_settings(run).get("diagnostics", True) is not False:
+        try:
+            note = await codecheck.after_step(run, edited)
+        except Exception:
+            traceback.print_exc()
+            note = ""
+        if note:
+            save_message(run.chat["id"], "note", note, hidden=1)
+    wanted = getattr(run, "want_advice", "")
+    run.want_advice = ""
+    if wanted and getattr(run, "advice_count", 0) < 3 and advisor.available(run):
+        run.advice_count = getattr(run, "advice_count", 0) + 1
+        try:
+            run.emit("notice", {"text": "Stuck on the same step, so the agent is asking the advisor model."})
+            text = await advisor.ask(run, wanted)
+        except Exception:
+            traceback.print_exc()
+            text = ""
+        if text:
+            save_message(run.chat["id"], "note", "A stronger model looked at where you are stuck and advises:\n" + text + "\nUse this advice for your next steps.", hidden=1)
 
 
 def absorb_inbox(run):
@@ -432,6 +513,7 @@ def warn_if_stuck(run, name, args, outcome):
         run.recent_calls = []
         save_message(run.chat["id"], "note", "You have now run the same call three times and it failed each time. Stop repeating it. Read the error text again, find the real cause (check versions, paths, ports, permissions, the exact input), then change your approach: try a different tool or a smaller test, or search the web for the error message.", hidden=1)
         run.emit("notice", {"text": "The same step failed three times, so the agent was told to change its approach."})
+        run.want_advice = "The same call failed three times in a row: " + key[:400] + "\nLast error: " + str(outcome.get("text") or "")[:800] + "\nWhat is the real cause, and what should the agent do instead?"
     failures = 0
     for item in run.recent_calls[-6:]:
         if not item[1]:
@@ -628,11 +710,19 @@ async def execute_call(run, call):
         args["agent"] = "explore"
     must = integrations.always_ask(name, args)
     ask_first = must or (run.mode == "ask" and tools.needs_approval(name, args))
+    check = await check_tool(run, name, args)
+    if check.get("decision") == "deny":
+        return name, args, tools.result("Not allowed: " + (check.get("reason") or "a rule refuses this call.") + " Do it another way, or tell the user why it cannot be done.", ok=False, meta={"denied": True, "rule": check.get("reason", "")})
+    if check.get("decision") == "allow" and not must:
+        ask_first = False
+    forced = check.get("decision") == "ask" and not run.unattended
+    if forced:
+        ask_first = True
     key = allow_key(name, args)
     if name == "computer" and key not in run.allowed:
         from app.routes import desktop
         ask_first = ask_first or desktop.must_confirm(run.user, args)
-    if ask_first and (must or key not in run.allowed):
+    if ask_first and (must or forced or key not in run.allowed):
         answer = await run.wait_for_user(call["id"], "approval", {"name": name, "args": args, "always": not must})
         if answer == "always" and not must:
             run.allowed.append(key)
@@ -644,7 +734,7 @@ async def execute_call(run, call):
             elif isinstance(answer, str) and answer not in ["deny", ""]:
                 note = note + " Their note: " + answer
             return name, args, tools.result(note, ok=False, meta={"denied": True})
-    outcome = await tools.execute(run, name, args, call["id"])
+    outcome = await call_tool(run, name, args, call["id"])
     return name, args, outcome
 
 
@@ -661,6 +751,9 @@ def parallel_groups(run, calls):
         name = call["function"]["name"]
         args, _ = parse_args(call)
         safe = name in PARALLEL_SAFE and args is not None and name not in getattr(run, "stubbed", set())
+        if name == "task" and args is not None and run.mode != "plan":
+            definition = agents.available(run).get(args.get("agent") or "explore")
+            safe = definition is not None and agents.read_only(definition)
         if safe and run.mode != "ask" and not integrations.always_ask(name, args):
             current.append(call)
             continue
@@ -912,6 +1005,14 @@ def announced_more(content):
     return bool(INTENT.search(tail))
 
 
+class StopRun(Exception):
+    """A hook refused the message: the run ends quietly."""
+
+
+async def prompt_core(event):
+    return {"text": event["text"], "notes": []}
+
+
 async def run_main(run, first_text):
     status = "done"
     error_text = ""
@@ -922,6 +1023,13 @@ async def run_main(run, first_text):
             run.local_notes = await local.project_notes(run)
         if run.model and capability.verdict(run.model.get("key", "")) == "weak":
             small_model_note(run)
+        run.engine = build_engine(run)
+        submitted = await run.engine.emit(run, "prompt.submit", {"text": first_text}, prompt_core)
+        if submitted.get("blocked"):
+            run.emit("notice", {"text": submitted["blocked"][:600]})
+            raise StopRun()
+        for note in submitted.get("notes") or []:
+            save_message(run.chat["id"], "note", note, hidden=1)
         before = await checkpoints.snapshot(run.wid, "before: " + first_text[:80])
         db.update("runs", "id", run.id, {"checkpoint_before": before})
         run.emit("checkpoint", {"commit": before})
@@ -1053,12 +1161,15 @@ async def run_main(run, first_text):
                 run.emit("tool_end", {"id": call["id"], "ok": outcome["ok"], "text": outcome["text"][:6000], "meta": meta})
                 if outcome["end_turn"]:
                     end_turn = True
+            await after_step(run)
             if end_turn:
                 break
         if step >= config.MAX_STEPS:
             run.emit("notice", {"text": "Stopped after " + str(config.MAX_STEPS) + " steps. Send a message to continue."})
         elif status == "done" and not final_text.strip() and step > 1:
             run.emit("notice", {"text": "The model stopped without a final answer. Send \"continue\" and it picks up where it stopped."})
+    except StopRun:
+        status = "stopped"
     except llm.ModelError as problem:
         status = "error"
         error_text = str(problem)
@@ -1075,12 +1186,10 @@ async def run_main(run, first_text):
         if run.changed and not run.local:
             files = await checkpoints.changed_files(run.wid, db.one_row("SELECT checkpoint_before FROM runs WHERE id = ?", (run.id,))["checkpoint_before"])
             run.emit("changes", {"files": files})
-        hooks = {}
-        if not run.local:
-            hooks = tools.read_settings(run.wid).get("hooks") or {}
-        if hooks.get("after_turn") and run.changed and status == "done":
-            hook = await sandbox.run(run.wid, hooks["after_turn"], timeout=120, limit=4000)
-            run.emit("notice", {"text": "after_turn hook exit " + str(hook["code"]) + ": " + hook["output"][-600:]})
+        async def turn_core(event):
+            return None
+        if getattr(run, "engine", None) is not None:
+            await run.engine.emit(run, "turn.end", {"status": status, "changed": run.changed}, turn_core)
     except Exception:
         traceback.print_exc()
     db.update("runs", "id", run.id, {"status": status, "error": error_text, "ended_at": db.now(), "tokens_in": run.tokens_in, "tokens_out": run.tokens_out})
@@ -1104,15 +1213,28 @@ async def run_main(run, first_text):
 
 
 async def run_subagent(run, args, call_id):
+    async with run.helper_slots:
+        return await helper_run(run, args, call_id)
+
+
+async def helper_run(run, args, call_id):
     kind = args.get("agent") or "explore"
+    definition = agents.available(run).get(kind)
+    if definition is None:
+        return tools.result("There is no helper called " + kind + ". Helpers: " + ", ".join(agents.available(run).keys()), ok=False)
+    model = agents.model_for(run, definition)
     if kind == "explore":
         found = specs.explore_specs()
         system = prompt.SUB_EXPLORE
-    else:
+    elif kind == "general":
         found = specs.general_specs()
         for spec in tools.custom_specs(run.user["id"]):
             found.append(spec)
         system = prompt.SUB_GENERAL
+    else:
+        found = agents.specs_for(run, definition)
+        base = prompt.SUB_EXPLORE if agents.read_only(definition) else prompt.SUB_GENERAL
+        system = base + "\n\nYour role (" + kind + "):\n" + (definition.get("prompt") or definition["description"])
     if run.local:
         system = system + "\n\n" + prompt.local_text(run.chat, run.local_notes)
     else:
@@ -1127,9 +1249,11 @@ async def run_subagent(run, args, call_id):
         step = step + 1
         if run.stop_flag.is_set():
             return tools.result("Stopped by the user.", ok=False)
-        answer = await llm.stream_chat(run.model, messages, tools=found, stop_flag=run.stop_flag)
+        answer = await llm.stream_chat(model, messages, tools=found, stop_flag=run.stop_flag)
         run.tokens_in = run.tokens_in + answer["usage"]["prompt_tokens"]
         run.tokens_out = run.tokens_out + answer["usage"]["completion_tokens"]
+        answer.setdefault("model_key", (model or {}).get("key", ""))
+        charge(run, answer)
         calls, content, reasoning, leaked, unknown = recover_calls(answer, found)
         message = {"role": "assistant", "content": content or None}
         if len(calls) > 0:
@@ -1155,7 +1279,12 @@ async def run_subagent(run, args, call_id):
                 outcome = tools.result("Arguments were not valid JSON.", ok=False)
             else:
                 run.emit("sub", {"parent": call_id, "kind": "tool", "name": name, "args": summarize_args(args_value)})
-                outcome = await tools.execute(run, name, args_value, call_id + "_sub")
+                allowed = set(spec["function"]["name"] for spec in found)
+                check = await check_tool(run, name, args_value) if name in allowed else {"decision": "deny", "reason": "this helper does not have " + name}
+                if check.get("decision") == "deny":
+                    outcome = tools.result("Not allowed: " + (check.get("reason") or "a rule refuses this call."), ok=False)
+                else:
+                    outcome = await call_tool(run, name, args_value, call_id + "_sub")
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": outcome["text"]})
             if outcome.get("image"):
                 images.append(outcome["image"])

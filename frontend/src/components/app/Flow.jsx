@@ -11,7 +11,7 @@ import ToolCall, { describe } from "./ToolCall"
 
 export const CATEGORY = {
   read_file: "explore", list_dir: "explore", glob: "explore", grep: "explore", web_search: "explore", web_fetch: "explore",
-  use_skill: "explore", memory: "explore", job_output: "explore",
+  use_skill: "explore", memory: "explore", job_output: "explore", monitor: "run", advisor: "explore",
   write_file: "edit", edit_file: "edit", multi_edit: "edit", create_tool: "edit", save_skill: "edit",
   bash: "run", kill_job: "run", preview: "run",
   browser: "browse", screenshot: "browse",

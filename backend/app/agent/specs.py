@@ -1,4 +1,4 @@
-READ_ONLY = ["read_file", "list_dir", "glob", "grep", "web_search", "web_fetch", "todo_write", "job_output", "ask_user", "use_skill", "memory", "screenshot", "exit_plan_mode"]
+READ_ONLY = ["read_file", "list_dir", "glob", "grep", "web_search", "web_fetch", "todo_write", "job_output", "monitor", "advisor", "ask_user", "use_skill", "memory", "screenshot", "exit_plan_mode"]
 BROWSER_READ_ONLY = ["screenshot", "read", "tabs", "wait"]
 COMPUTER_READ_ONLY = ["screenshot", "info", "windows", "wait"]
 
@@ -69,6 +69,13 @@ BUILTIN = [
     }, ["command"]),
     fn("job_output", "Read the output of a background job and see if it is still running.", {
         "job_id": string("The id returned by bash with run_in_background."),
+    }, ["job_id"]),
+    fn("monitor", "Wait on a background job or service until its output shows a line you expect (until), shows a failure (fail), the job stops, or the timeout passes. Use it instead of sleep loops, for example after starting a server: until \"ready|listening|Local:\", fail \"error|EADDRINUSE\".", {
+        "job_id": string("The job id from bash run_in_background, or a service name."),
+        "until": string("A regular expression; returns as soon as a new output line matches."),
+        "fail": string("A regular expression for lines that mean it failed."),
+        "timeout": integer("Seconds to wait, default 60, at most 300."),
+        "only_new": boolean("Ignore output printed before this call. Default false: the job's whole log counts."),
     }, ["job_id"]),
     fn("kill_job", "Stop a background job.", {
         "job_id": string("The job id."),

@@ -3,7 +3,7 @@ import {
   BookOpen, Bot, Brain, Camera, Check, ChevronRight, Download, FilePen, FilePlus, FileText, FolderTree, Globe,
   ListChecks, Loader2, MessageCircleQuestion, MonitorPlay, Plug, Search, ShieldQuestion, Sparkles, Square,
   TerminalSquare, Wrench, X, ExternalLink, FileSearch, Laptop, MousePointerClick, Github, Mail, Clipboard, ImageIcon,
-  Keyboard, AppWindow, Move, Clock, Eye, Presentation
+  Keyboard, AppWindow, Move, Clock, Eye, Presentation, Activity, Lightbulb
 } from "lucide-react"
 import ForkMark, { markMode } from "./ForkMark"
 import WaveText from "./WaveText"
@@ -142,7 +142,9 @@ export function describe(name, args, meta) {
   if (name === "todo_write") return { icon: ListChecks, verb: "Updated the plan", target: "" }
   if (name === "memory") return { icon: Brain, verb: args.action === "delete" ? "Forgot" : args.action === "list" ? "Checked memory" : "Remembered", target: args.content || "" }
   if (name === "ask_user") return { icon: MessageCircleQuestion, verb: "Asked you", target: args.question }
-  if (name === "task") return { icon: Bot, verb: "Helper agent", target: args.description }
+  if (name === "task") return { icon: Bot, verb: args.agent && !["explore", "general"].includes(args.agent) ? "Helper (" + args.agent + ")" : "Helper agent", target: args.description }
+  if (name === "monitor") return { icon: Activity, verb: m.matched === "until" ? "Saw" : m.stopped ? "Watched until it stopped" : "Watched", target: args.until ? "“" + args.until + "” in " + (args.job_id || "") : args.job_id }
+  if (name === "advisor") return { icon: Lightbulb, verb: "Asked the advisor", target: args.question }
   if (name === "show_file") return { icon: Download, verb: "Shared", target: shortPath(args.path) }
   if (name === "generate_image") return { icon: Camera, verb: "Created an image", target: (args.prompt || "").slice(0, 80) }
   if (name === "video") {
@@ -167,7 +169,7 @@ const ING = {
   "Opened the live preview": "Opening the preview", "Looked at": "Looking at", Opened: "Opening", Clicked: "Clicking", Typed: "Typing",
   "Searched the web for": "Searching the web for", "Updated the plan": "Planning", Remembered: "Remembering", "Asked you": "Asking you",
   Shared: "Sharing", "Created an image": "Creating an image", "Learned a new ability": "Learning a new ability", "Saved a skill": "Saving a skill",
-  "Used the skill": "Using the skill", "Wrote a plan": "Writing the plan", "Helper agent": "Helper agent working on", Used: "Using",
+  "Used the skill": "Using the skill", "Wrote a plan": "Writing the plan", "Helper agent": "Helper agent working on", Used: "Using", Watched: "Waiting on", "Asked the advisor": "Asking the advisor", Saw: "Waiting for",
 }
 
 export function liveLabel(name, args) {

@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import difflib
 import fnmatch
@@ -79,17 +80,6 @@ def read_settings(wid):
         return {}
 
 
-async def after_edit_hook(run, rel):
-    hooks = read_settings(run.wid).get("hooks") or {}
-    command = hooks.get("after_edit")
-    if not command:
-        return ""
-    output = await sandbox.run(run.wid, command.replace("{file}", rel), timeout=60, limit=4000)
-    if output["code"] != 0 or output["output"].strip():
-        return "\n\nafter_edit hook (exit " + str(output["code"]) + "):\n" + output["output"].strip()[:3000]
-    return ""
-
-
 def blocked_command(run, command):
     deny = read_settings(run.wid).get("deny") or []
     for pattern in deny:
@@ -166,12 +156,11 @@ async def write_file(run, args):
     target.write_text(content, encoding="utf-8")
     diff = make_diff(old, content, rel)
     added, removed = count_changes(diff)
-    hook = await after_edit_hook(run, rel)
     word = "Created "
     if existed:
         word = "Replaced "
     run.changed = True
-    return result(word + rel + " (" + str(content.count("\n") + 1) + " lines)." + hook, meta={"path": rel, "diff": diff, "added": added, "removed": removed, "created": not existed})
+    return result(word + rel + " (" + str(content.count("\n") + 1) + " lines).", meta={"path": rel, "diff": diff, "added": added, "removed": removed, "created": not existed})
 
 
 def replace_once(text, old, new, replace_all, rel):
@@ -209,9 +198,8 @@ async def apply_edits(run, path, edits):
     target.write_text(text, encoding="utf-8")
     diff = make_diff(old, text, rel)
     added, removed = count_changes(diff)
-    hook = await after_edit_hook(run, rel)
     run.changed = True
-    return result("Edited " + rel + " (+" + str(added) + " -" + str(removed) + ")." + hook, meta={"path": rel, "diff": diff, "added": added, "removed": removed})
+    return result("Edited " + rel + " (+" + str(added) + " -" + str(removed) + ").", meta={"path": rel, "diff": diff, "added": added, "removed": removed})
 
 
 async def edit_file(run, args):
@@ -496,6 +484,65 @@ async def job_output(run, args):
     if not status["alive"]:
         state = "stopped"
     return result("Job " + status["job"]["id"] + " is " + state + ".\n" + (status["output"] or "(no output)"))
+
+
+def find_job(wid, ref):
+    found = None
+    for job in sandbox.read_jobs(wid):
+        if job["id"] == ref:
+            return job
+        if ref and job.get("name") == ref:
+            found = job  # a service's newest job
+    return found
+
+
+def tail_lines(text, count=25):
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    return "\n".join(lines[-count:])
+
+
+async def monitor(run, args):
+    """Waits on a background job or service until its output shows a line, it stops, or time runs out."""
+    ref = str(args.get("job_id") or args.get("service") or "").strip()
+    job = find_job(run.wid, ref)
+    if job is None:
+        return result("No job or service called " + (ref or "(empty)") + ". Jobs: " + (", ".join(job_ids(run.wid)) or "none"), ok=False)
+    try:
+        until = re.compile(args["until"], re.I) if args.get("until") else None
+        fail = re.compile(args["fail"], re.I) if args.get("fail") else None
+    except re.error as problem:
+        return result("until or fail is not a valid regular expression: " + str(problem), ok=False)
+    timeout = min(max(int(args.get("timeout") or 60), 1), 300)
+    path = sandbox.host_root(run.wid) / job["log"]
+
+    def read():
+        return path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+    start = len(read()) if args.get("only_new") else 0
+    began = time.time()
+    checked = 0.0
+    while True:
+        text = read()
+        if len(text) < start:
+            start = 0
+        fresh = text[start:]
+        for line in fresh.splitlines():
+            if fail is not None and fail.search(line):
+                return result("Failure line after " + str(int(time.time() - began)) + "s: " + line.strip()[:400] + "\n\nRecent output:\n" + tail_lines(fresh), ok=False, meta={"matched": "fail"})
+            if until is not None and until.search(line):
+                return result("Matched after " + str(int(time.time() - began)) + "s: " + line.strip()[:400] + "\n\nRecent output:\n" + tail_lines(fresh), meta={"matched": "until"})
+        now = time.time()
+        if now - checked >= 3:
+            checked = now
+            if not await sandbox.job_alive(run.wid, job):
+                said = " without printing a line that matches " + args["until"] if until is not None else ""
+                return result("The job stopped after " + str(int(now - began)) + "s" + said + ".\n\nLast output:\n" + (tail_lines(fresh) or tail_lines(text) or "(none)"), ok=until is None, meta={"stopped": True})
+        if now - began >= timeout:
+            if until is None:
+                return result("Still running after " + str(timeout) + "s.\n\nRecent output:\n" + (tail_lines(fresh) or "(no new output)"))
+            return result("Waited " + str(timeout) + "s and no line matched " + args["until"] + ". The job is still running.\n\nRecent output:\n" + (tail_lines(fresh) or "(no new output)"), ok=False)
+        if run.stop_flag.is_set():
+            return result("Stopped by the user.", ok=False)
+        await asyncio.sleep(0.5)
 
 
 def job_ids(wid):
@@ -1183,6 +1230,11 @@ async def execute(run, name, args, call_id):
             return await scaffold_tool(run, args)
         if name == "kill_job":
             return await kill_job(run, args)
+        if name == "monitor":
+            return await monitor(run, args)
+        if name == "advisor":
+            from app.agent import advisor
+            return await advisor.consult(run, args.get("question") or "", args.get("context") or "")
         if name == "preview":
             return await preview(run, args)
         if name == "screenshot":
