@@ -28,7 +28,8 @@ Describe the app, site or fix you want. Forkwise plans it, writes the code on it
 Most AI coding tools write code and hand it back to you. Forkwise **finishes the job**:
 
 - 🖥️ **It has a real computer.** Every chat gets an isolated Linux machine. It installs packages, starts servers, runs tests and opens your app in a browser, then fixes what breaks.
-- ✅ **It checks its own work.** Before it may say "done", an automatic review looks at what really happened: unfinished tasks, failed builds, apps that were never started, giant single files. If anything is wrong, it goes back to work.
+- ✅ **It checks its own work.** Every edit is compiled and type-checked on the spot, and before it may say "done" an automatic review looks at what really happened: unfinished tasks, failed builds, apps that were never started, giant single files. If anything is wrong, it goes back to work.
+- 🧠 **Cheap models, smart moments.** A free or low-cost model does the steps and asks a stronger **advisor** model only when it matters: choosing an approach, getting unstuck, a last look before finishing.
 - 👀 **Nothing happens behind your back.** Every read, edit, command and test shows up live, grouped into clear steps, next to a workspace with preview, files, changes, terminals and the plan.
 - 🔑 **Bring any model.** Use Claude, GPT, Gemini, DeepSeek, Qwen, Llama, Mistral, Kimi and more, or connect **your own API key** and even **local models** through Ollama or LM Studio.
 - 💻 **It works where you work.** In the browser, in a Cursor-style desktop app on your own folders, from your phone, or from your own code through the API.
@@ -94,6 +95,38 @@ GitHub, Google, any MCP server, plus a directory of featured connectors and read
 </td>
 </tr>
 </table>
+
+### Rules, hooks and helpers for your project
+One file, `.forkwise/settings.json`, decides what the agent may do and what runs around it, and helper agents of your own live next to it:
+
+```jsonc
+{
+  "permissions": {
+    "allow": ["bash(npm *)", "bash(git status*)"],
+    "ask":   ["bash(git push*)"],
+    "deny":  ["bash(*rm -rf*)", "write_file(.env*)"]
+  },
+  "hooks": {
+    "before_tool": [{ "match": "bash", "command": "./scripts/guard.sh" }],   // exit 2 refuses the call
+    "after_tool":  [{ "match": "write_file|edit_file", "command": "npx eslint {file}" }],
+    "on_prompt":   [{ "command": "cat docs/CONTEXT.md" }],                  // handed to the model with your message
+    "after_turn":  "npm test"
+  }
+}
+```
+
+```markdown
+<!-- .forkwise/agents/migrator.md -->
+---
+name: migrator
+description: Writes and runs database migrations, then checks the schema.
+tools: read_file, edit_file, write_file, bash
+model: fast
+---
+You write migrations that can be rolled back...
+```
+
+Built in are **explore**, **general**, **reviewer** and **tester**; read-only helpers started together run side by side. The **monitor** tool waits on a server until it prints `ready` (or fails), so nothing spins in sleep loops.
 
 **And also:** voice conversations (talk, and it answers out loud) · checkpoints on every message (go back and your files come back too) · Agent, Plan and Ask-first modes · memory across chats · projects with their own instructions · scheduled tasks · encrypted secrets · image and video generation · Forkwise for Chrome · desktop and Android apps · a public API with live event streams.
 
@@ -209,10 +242,14 @@ flowchart LR
   end
   subgraph Server["API server (FastAPI)"]
     R[Agent loop<br/>tools · skills · memory]
+    E[Event engine<br/>rules · hooks · code checks]
     V[Review before finishing]
+    H[Helpers · advisor]
     P[Model router<br/>failover · your own keys]
   end
   W & M & A --> Server
+  R <--> E
+  R --> H
   D -- "cloud chats" --> Server
   D -. "this computer" .-> L[(Your folders<br/>and terminal)]
   R --> S[(Sandbox per chat<br/>Docker: shell, browser, preview)]
@@ -221,10 +258,23 @@ flowchart LR
 
 | Folder | What lives there |
 | --- | --- |
-| [`backend/`](backend) | FastAPI server: auth, chats, the agent loop and its 30 tools, 26 skills, MCP, checkpoints, schedules, billing, the public API |
+| [`backend/`](backend) | FastAPI server: auth, chats, the agent loop and its 32 tools, 26 skills, MCP, checkpoints, schedules, billing, the public API |
+| [`backend/app/agent/`](backend/app/agent) | The agent itself: the loop (`runs.py`), the event engine every tool call passes through (`engine.py`), code checks after edits (`codecheck.py`), helper agents (`agents.py`), the advisor (`advisor.py`) and the tools |
 | [`backend/sandbox/`](backend/sandbox) | The Docker image every chat runs in: Python, Node, a headless browser, the preview proxy |
 | [`backend/deploy/`](backend/deploy) | One-command server install, updates, nginx and firewall |
 | [`frontend/`](frontend) | The web app: chat, workspace, projects, settings and admin |
+
+#### How a tool call travels
+
+Every step the agent takes goes through one chain of handlers, outermost first, so a lower-trust layer can never get around a higher one:
+
+```
+tool.check:  policy (your permission rules) → builtin → user (your before_tool hooks) → the mode's own decision
+tool.call:   builtin (code check after edits) → user (after_tool hooks) → the tool itself
+prompt.submit, turn.end: your on_prompt and after_turn hooks
+```
+
+A handler that crashes is skipped, except a safety rule, which then refuses the call. The same chain runs for helper agents, so a rule you set holds for them too.
 
 ### What is open and what is not
 
