@@ -302,7 +302,7 @@ function StepCall({ call, results, ctx }) {
   )
 }
 
-function Steps({ nodes, results, ctx }) {
+function Steps({ nodes, results, ctx, last }) {
   const calls = []
   for (const node of nodes) {
     if (node.type === "group") calls.push(...node.calls)
@@ -311,7 +311,8 @@ function Steps({ nodes, results, ctx }) {
   const status = calls.length ? statusOf(calls, results, ctx.live, ctx.live.waiting) : (ctx.live.running && ctx.lastTurn ? "running" : "done")
   const busy = status === "running" || status === "waiting"
   const [open, setOpen] = useState(null)
-  const expanded = open === null ? busy || status === "failed" : open
+  // While the answer is live, its newest block of steps stays open, so it doesn't fold and unfold between steps.
+  const expanded = open === null ? busy || status === "failed" || Boolean(last && ctx.lastTurn && ctx.live.running) : open
   const totals = diffTotals(calls, results)
   const text = summarize(nodes)
   return (
@@ -361,8 +362,8 @@ export default function Flow({ nodes, results, ctx }) {
   if (blocks.length === 0) return null
   return (
     <div className="fw-flow">
-      {blocks.map((node) => {
-        if (node.type === "steps") return <Steps key={node.key} nodes={node.nodes} results={results} ctx={ctx} />
+      {blocks.map((node, index) => {
+        if (node.type === "steps") return <Steps key={node.key} nodes={node.nodes} results={results} ctx={ctx} last={index === blocks.length - 1} />
         if (node.type === "note") return <div key={node.key} className="fw-flow-note">Earlier messages were summarized to save space.</div>
         if (node.type === "say") return <div key={node.key} className="fw-flow-say"><SayText text={node.text} /></div>
         return <div key={node.key} className="fw-flow-block"><FlowCall call={node.call} results={results} ctx={ctx} /></div>

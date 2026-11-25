@@ -98,8 +98,8 @@ export default function DocViewer({ url, downloadUrl, name, kind, onClose }) {
         <div className="dv-head">
           <strong dir="auto">{name}</strong>
           <span className="pv-grow" />
-          <a className="pv-btn" href={url} target="_blank" rel="noreferrer" title="Open in a new tab" aria-label="Open in a new tab"><ExternalLink size={15} /></a>
-          {downloadUrl && <a className="pv-btn" href={downloadUrl} title="Download" aria-label="Download"><Download size={15} /></a>}
+          {!String(url).startsWith("blob:") && <a className="pv-btn" href={url} target="_blank" rel="noreferrer" title="Open in a new tab" aria-label="Open in a new tab"><ExternalLink size={15} /></a>}
+          {downloadUrl && <a className="pv-btn" href={downloadUrl} download={name} title="Download" aria-label="Download"><Download size={15} /></a>}
           <button type="button" className="pv-btn" onClick={onClose} title="Close (Esc)" aria-label="Close"><X size={16} /></button>
         </div>
         <div className="dv-body"><DocBody url={url} name={name} kind={kind} /></div>
